@@ -1,0 +1,9 @@
+{
+  "id": "cat-on-screen",
+  "name": "猫咪霸屏",
+  "author": "hongyu",
+  "description": "一只猫懒洋洋地躺在你的屏幕上，让你无法工作",
+  "duration": 10,
+  "tags": ["可爱", "搞笑"],
+  "version": "1.0.0"
+}

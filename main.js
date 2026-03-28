@@ -43,7 +43,9 @@ async function showRandomScene() {
     return;
   }
 
-  const sceneName = scenes[Math.floor(Math.random() * scenes.length)];
+  // TODO: 开发期间固定使用 cat-paw，上线后恢复随机
+  // const sceneName = scenes[Math.floor(Math.random() * scenes.length)];
+  const sceneName = 'cat-on-screen';  // 固定场景，方便开发调试
   const sceneDir = path.join(SCENES_DIR, sceneName);
   const scenePath = path.join(sceneDir, 'index.html');
 
@@ -66,6 +68,7 @@ async function showRandomScene() {
 
   currentWindow = new BrowserWindow({
     fullscreen: true,
+    kiosk: true,
     frame: false,
     alwaysOnTop: true,
     show: false,
@@ -94,12 +97,6 @@ async function showRandomScene() {
   currentWindow.on('closed', () => {
     currentWindow = null;
   });
-
-  setTimeout(() => {
-    if (currentWindow && !currentWindow.isDestroyed()) {
-      currentWindow.close();
-    }
-  }, duration * 1000 + 2000);
 
   console.log(`[TakeBreak] Scene "${sceneName}" triggered`);
 }

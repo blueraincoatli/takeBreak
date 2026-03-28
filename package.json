@@ -7,9 +7,14 @@
     "start": "electron .",
     "test": "curl --noproxy localhost -s http://localhost:3721/heartbeat"
   },
-  "keywords": ["takebreak", "scene-player", "break-reminder"],
+  "keywords": [
+    "takebreak",
+    "scene-player",
+    "break-reminder"
+  ],
   "license": "MIT",
   "dependencies": {
-    "electron": "^35.0.0"
+    "electron": "^35.0.0",
+    "sharp": "^0.34.5"
   }
 }
