@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>10000吨铁锤警告</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        .bg-screenshot {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: #000 no-repeat center center;
+            background-size: 100vw 100vh;
+            z-index: 0;
+        }
+
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            animation: fadeIn 0.3s ease forwards;
+            cursor: pointer;
+            z-index: 10000;
+        }
+
+        @keyframes fadeIn {
+            to { opacity: 1; }
+        }
+
+        .overlay.shake {
+            animation: fadeIn 0.3s ease forwards, shake 0.15s ease-in-out 0.7s;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translate(0, 0); }
+            10% { transform: translate(-15px, -10px); }
+            20% { transform: translate(15px, 10px); }
+            30% { transform: translate(-10px, 5px); }
+            40% { transform: translate(10px, -5px); }
+            50% { transform: translate(-5px, 10px); }
+            60% { transform: translate(5px, -10px); }
+            70% { transform: translate(-10px, 5px); }
+            80% { transform: translate(10px, -5px); }
+            90% { transform: translate(-5px, 10px); }
+        }
+
+        .flash {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: white;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 10001;
+        }
+
+        .flash.active {
+            animation: flashImpact 0.3s ease-out forwards;
+        }
+
+        @keyframes flashImpact {
+            0% { opacity: 0.9; }
+            100% { opacity: 0; }
+        }
+
+        .hammer-container {
+            position: fixed;
+            top: -600px;
+            right: -600px;
+            width: 1200px;
+            height: 900px;
+            z-index: 10004;
+            transform: perspective(800px) rotate(-50deg) rotateX(45deg) rotateY(-20deg) scale(0.5);
+            animation: hammerSwing 0.5s cubic-bezier(0.22, 0.61, 0.36, 1) 0.3s forwards;
+        }
+
+        .hammer-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            filter: drop-shadow(0 20px 40px rgba(0,0,0,0.5));
+        }
+
+        @keyframes hammerSwing {
+            0% {
+                top: -600px;
+                right: -600px;
+                transform: perspective(800px) rotate(-50deg) rotateX(45deg) rotateY(-20deg) scale(0.5);
+            }
+            70% {
+                transform: perspective(800px) rotate(-10deg) rotateX(15deg) rotateY(-6deg) scale(1.3);
+            }
+            100% {
+                top: 5%;
+                right: 10%;
+                transform: perspective(800px) rotate(5deg) rotateX(6deg) rotateY(-2deg) scale(1.2);
+            }
+        }
+
+        .speed-lines {
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10001;
+        }
+
+        .speed-line {
+            position: absolute;
+            height: 3px;
+            background: linear-gradient(to left, rgba(255,255,255,0.8), transparent);
+            transform-origin: right center;
+            opacity: 0;
+            animation: speedLineIn 0.4s ease-in 0.3s forwards;
+        }
+
+        @keyframes speedLineIn {
+            0% { opacity: 1; width: 0; }
+            100% { opacity: 0; width: 300px; }
+        }
+
+        .crack-container {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 100vmax;
+            height: 100vmax;
+            pointer-events: none;
+            z-index: 10003;
+        }
+
+        .crack-svg {
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            animation: crackAppear 0.1s ease 0.7s forwards;
+        }
+
+        @keyframes crackAppear {
+            to { opacity: 1; }
+        }
+
+        .crack-line {
+            stroke: rgba(255, 255, 255, 0.9);
+            stroke-width: 4;
+            fill: none;
+            stroke-linecap: round;
+            stroke-dasharray: 1000;
+            stroke-dashoffset: 1000;
+            animation: crackExtend 0.5s ease-out 0.8s forwards;
+            filter: drop-shadow(0 0 10px rgba(255,255,255,0.5));
+        }
+
+        @keyframes crackExtend {
+            to { stroke-dashoffset: 0; }
+        }
+
+        .shard {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            width: 20px;
+            height: 20px;
+            background: linear-gradient(135deg, rgba(255,255,255,0.9), rgba(200,200,255,0.6));
+            clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+            opacity: 0;
+            pointer-events: none;
+            z-index: 10004;
+        }
+
+        .reminder-text {
+            position: fixed;
+            top: 70%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: clamp(28px, 5vw, 56px);
+            font-weight: bold;
+            color: #fff;
+            text-shadow:
+                0 0 20px rgba(255, 100, 100, 0.8),
+                0 0 40px rgba(255, 50, 50, 0.6),
+                3px 3px 0 #ff3333,
+                -3px -3px 0 #ff6666,
+                0 0 60px rgba(255, 0, 0, 0.5);
+            text-align: center;
+            padding: 20px 40px;
+            opacity: 0;
+            z-index: 10005;
+            white-space: pre-line;
+            letter-spacing: 2px;
+            animation: textAppear 0.5s ease-out 1.2s forwards;
+        }
+
+        @keyframes textAppear {
+            0% { opacity: 0; transform: translate(-50%, -50%) scale(1.5); }
+            50% { transform: translate(-50%, -50%) scale(0.95); }
+            100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        }
+
+        .effect-lines {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 9999;
+            opacity: 0;
+            animation: effectLinesIn 0.3s ease 0.7s forwards;
+        }
+
+        @keyframes effectLinesIn {
+            to { opacity: 0.3; }
+        }
+
+        .impact-burst {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(255,255,255,1) 0%, rgba(255,200,100,0.8) 30%, transparent 70%);
+            opacity: 0;
+            pointer-events: none;
+            z-index: 10003;
+        }
+
+        .impact-burst.active {
+            animation: burstExpand 0.6s ease-out forwards;
+        }
+
+        @keyframes burstExpand {
+            0% { width: 10px; height: 10px; opacity: 1; }
+            100% { width: 800px; height: 800px; opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-screenshot"></div>
+    <div class="overlay" id="overlay">
+        <svg class="effect-lines" viewBox="0 0 100 100" preserveAspectRatio="none">
+            <defs>
+                <pattern id="lines" patternUnits="userSpaceOnUse" width="100" height="100">
+                    <line x1="50" y1="50" x2="0" y2="0" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                    <line x1="50" y1="50" x2="100" y2="0" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                    <line x1="50" y1="50" x2="0" y2="100" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                    <line x1="50" y1="50" x2="100" y2="100" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                    <line x1="50" y1="50" x2="50" y2="0" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                    <line x1="50" y1="50" x2="50" y2="100" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                    <line x1="50" y1="50" x2="0" y2="50" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                    <line x1="50" y1="50" x2="100" y2="50" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
+                </pattern>
+            </defs>
+            <rect width="100" height="100" fill="url(#lines)"/>
+        </svg>
+
+        <div class="flash" id="flash"></div>
+        <div class="impact-burst" id="burst"></div>
+        <div class="speed-lines" id="speedLines"></div>
+
+        <div class="hammer-container">
+            <img src="hammer.svg" alt="10000t hammer">
+        </div>
+
+        <div class="crack-container">
+            <svg class="crack-svg" viewBox="-500 -500 1000 1000">
+                <path class="crack-line" d="M0,0 L50,-30 L120,-80 L200,-100 L350,-90"/>
+                <path class="crack-line" d="M0,0 L-60,-20 L-150,-60 L-280,-50 L-400,-80" style="animation-delay: 0.85s"/>
+                <path class="crack-line" d="M0,0 L30,50 L80,120 L100,200 L90,350" style="animation-delay: 0.9s"/>
+                <path class="crack-line" d="M0,0 L-20,60 L-50,150 L-40,280 L-60,400" style="animation-delay: 0.95s"/>
+                <path class="crack-line" d="M0,0 L80,10 L180,30 L300,0 L450,20" style="animation-delay: 1s"/>
+                <path class="crack-line" d="M0,0 L-70,-5 L-180,-15 L-320,10 L-450,-20" style="animation-delay: 0.82s"/>
+                <path class="crack-line" d="M0,0 L40,-60 L100,-150 L180,-280 L200,-400" style="animation-delay: 0.88s"/>
+                <path class="crack-line" d="M0,0 L-40,40 L-100,100 L-180,180 L-280,250" style="animation-delay: 0.92s"/>
+                <path class="crack-line" d="M0,0 L60,40 L140,100 L240,180 L380,260" style="animation-delay: 0.87s"/>
+                <path class="crack-line" d="M0,0 L-50,-50 L-130,-130 L-220,-240 L-300,-380" style="animation-delay: 0.93s"/>
+                <path class="crack-line" d="M120,-80 L160,-40 L200,-50" style="animation-delay: 1.1s; stroke-width: 2"/>
+                <path class="crack-line" d="M-150,-60 L-180,-30 L-220,-40" style="animation-delay: 1.15s; stroke-width: 2"/>
+                <path class="crack-line" d="M80,120 L120,100 L150,130" style="animation-delay: 1.12s; stroke-width: 2"/>
+                <path class="crack-line" d="M-50,150 L-90,130 L-120,160" style="animation-delay: 1.18s; stroke-width: 2"/>
+            </svg>
+        </div>
+
+        <div id="shards"></div>
+        <div class="reminder-text" id="reminderText"></div>
+    </div>
+
+    <script>
+        const messages = [
+            "站起来活动一下！\n久坐伤身",
+            "起来走两步！\n你的腰在抗议了",
+            "离开椅子！\n冴羽獠都要休息的",
+            "10000吨警告：\n站起来！",
+            "阿香提醒你：\n动一动！不然下一锤更重",
+            "你已经坐了一小时了\n起来转转脖子"
+        ];
+
+        document.getElementById('reminderText').textContent = messages[Math.floor(Math.random() * messages.length)];
+
+        function createSpeedLines() {
+            const container = document.getElementById('speedLines');
+            for (let i = 0; i < 20; i++) {
+                const line = document.createElement('div');
+                line.className = 'speed-line';
+                line.style.top = (Math.random() * 60) + '%';
+                line.style.right = (Math.random() * 40) + '%';
+                line.style.width = (150 + Math.random() * 200) + 'px';
+                line.style.transform = `rotate(${-30 + Math.random() * 60}deg)`;
+                line.style.animationDelay = (0.3 + Math.random() * 0.2) + 's';
+                container.appendChild(line);
+            }
+        }
+
+        function createShards() {
+            const container = document.getElementById('shards');
+            const shardCount = 28;
+            for (let i = 0; i < shardCount; i++) {
+                const shard = document.createElement('div');
+                shard.className = 'shard';
+                const size = 10 + Math.random() * 30;
+                shard.style.width = size + 'px';
+                shard.style.height = size + 'px';
+                const angle = (i / shardCount) * Math.PI * 2 + Math.random() * 0.5;
+                const distance = 200 + Math.random() * 400;
+                const endX = Math.cos(angle) * distance;
+                const endY = Math.sin(angle) * distance;
+                const rotation = Math.random() * 720 - 360;
+                const shapes = [
+                    'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)',
+                    'polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%)',
+                    'polygon(25% 0%, 100% 0%, 75% 100%, 0% 100%)',
+                    'polygon(0% 0%, 100% 0%, 100% 75%, 50% 100%, 0% 75%)'
+                ];
+                shard.style.clipPath = shapes[Math.floor(Math.random() * shapes.length)];
+                shard.style.animation = `shardFly${i} 0.8s ease-out 1s forwards`;
+                const style = document.createElement('style');
+                style.textContent = `
+                    @keyframes shardFly${i} {
+                        0% { opacity: 1; transform: translate(-50%, -50%) rotate(0deg); }
+                        100% { opacity: 0; transform: translate(calc(-50% + ${endX}px), calc(-50% + ${endY}px)) rotate(${rotation}deg); }
+                    }
+                `;
+                document.head.appendChild(style);
+                container.appendChild(shard);
+            }
+        }
+
+        function playHammerSound() {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const thudOsc = audioCtx.createOscillator();
+                const thudGain = audioCtx.createGain();
+                thudOsc.type = 'sine';
+                thudOsc.frequency.setValueAtTime(80, audioCtx.currentTime);
+                thudOsc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.2);
+                thudGain.gain.setValueAtTime(0.8, audioCtx.currentTime);
+                thudGain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+                thudOsc.connect(thudGain);
+                thudGain.connect(audioCtx.destination);
+                thudOsc.start(audioCtx.currentTime);
+                thudOsc.stop(audioCtx.currentTime + 0.3);
+
+                const metalOsc = audioCtx.createOscillator();
+                const metalGain = audioCtx.createGain();
+                metalOsc.type = 'square';
+                metalOsc.frequency.setValueAtTime(800, audioCtx.currentTime);
+                metalOsc.frequency.exponentialRampToValueAtTime(200, audioCtx.currentTime + 0.15);
+                metalGain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                metalGain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+                metalOsc.connect(metalGain);
+                metalGain.connect(audioCtx.destination);
+                metalOsc.start(audioCtx.currentTime);
+                metalOsc.stop(audioCtx.currentTime + 0.2);
+
+                const bufferSize = audioCtx.sampleRate * 0.1;
+                const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 3);
+                }
+                const noise = audioCtx.createBufferSource();
+                const noiseGain = audioCtx.createGain();
+                const noiseFilter = audioCtx.createBiquadFilter();
+                noise.buffer = buffer;
+                noiseFilter.type = 'highpass';
+                noiseFilter.frequency.value = 1000;
+                noiseGain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+                noiseGain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                noise.connect(noiseFilter);
+                noiseFilter.connect(noiseGain);
+                noiseGain.connect(audioCtx.destination);
+                noise.start(audioCtx.currentTime);
+            } catch (e) {
+                console.log('Audio not supported');
+            }
+        }
+
+        createSpeedLines();
+        createShards();
+
+        setTimeout(() => {
+            document.getElementById('overlay').classList.add('shake');
+            document.getElementById('flash').classList.add('active');
+            document.getElementById('burst').classList.add('active');
+            playHammerSound();
+        }, 700);
+
+        // Click to close - Electron window.close() works directly
+        document.getElementById('overlay').addEventListener('click', () => {
+            document.getElementById('overlay').style.transition = 'opacity 0.3s';
+            document.getElementById('overlay').style.opacity = '0';
+            setTimeout(() => window.close(), 300);
+        });
+    </script>
+</body>
+</html>
