@@ -95,15 +95,25 @@ document.querySelector('.bg-screenshot').style.backgroundImage = 'url("file:///.
 }
 ```
 
-### 4. 自动关闭
+### 4. 用户手动关闭
 
-框架在 `manifest.duration + 2` 秒后自动关闭窗口。用户也可以点击页面主动关闭：
+框架不会自动关闭窗口，需要用户主动操作。建议使用双击关闭，避免误触：
 
 ```js
-document.addEventListener('click', () => {
+document.addEventListener('dblclick', () => {
     window.close();  // Electron 中直接关闭窗口
 });
 ```
+
+也可以用单击关闭（体验更直接，但容易误触）：
+
+```js
+document.addEventListener('click', () => {
+    window.close();
+});
+```
+
+> 另一种关闭方式：下一次 heartbeat 触发时，框架会自动关闭旧窗口并打开新场景。
 
 ## manifest.json 格式
 
@@ -185,16 +195,39 @@ scenes/cat-on-screen/
 - 抠图后导出为 `.webm` 即可在页面上实现透明叠加
 - 效果：视频中的猫咪覆盖在屏幕截图上，背景透出
 
+### 动态 WebP（如 cat-paw、cat-on-screen 场景）
+
+**适用场景**：AI 生成或实拍抠图后的短循环动画
+
+```
+scenes/cat-paw/
+  index.html
+  Comfyui_00002_.webp    # 动态 WebP 素材
+```
+
+**引用方式**：
+
+```html
+<img src="Comfyui_00002_.webp" alt="cat paw" class="animated-webp">
+```
+
+**特点**：
+- 支持透明背景（有损，边缘可能有伪影）
+- 自动循环播放，无需 JS 控制
+- 兼容性好，所有现代浏览器和 Electron 均支持
+- 文件适中（几百 KB 到几 MB）
+- 适合 AI 生成素材、短循环动画
+
 ### 对比总结
 
-| 维度 | SVG 动画 | 视频素材 |
-|------|---------|---------|
-| 文件大小 | KB 级 | MB 级 |
-| 真实感 | 抽象/卡通 | 真实画面 |
-| 透明叠加 | 天然支持 | 需 WebM alpha |
-| 动画控制 | 精确（CSS/JS） | 有限（播放/暂停） |
-| 音效 | Web Audio API 合成 | 视频内嵌或合成 |
-| 适用场景 | 图形特效、物体运动 | 真实拍摄、自然画面 |
+| 维度 | SVG 动画 | 视频 (MP4/WebM) | 动态 WebP |
+|------|---------|----------------|-----------|
+| 文件大小 | KB 级 | MB 级 | 几百KB~几MB |
+| 真实感 | 抽象/卡通 | 真实画面 | 介于两者之间 |
+| 透明叠加 | 天然支持 | 需 WebM alpha | 支持（有损） |
+| 动画控制 | 精确（CSS/JS） | 有限（播放/暂停） | 无控制（自动循环） |
+| 音效 | Web Audio API 合成 | 视频内嵌或合成 | 无（需额外合成） |
+| 适用场景 | 图形特效、物体运动 | 真实拍摄、长视频 | AI 素材、短循环动画 |
 
 ## HTML 页面模板
 
@@ -245,8 +278,8 @@ scenes/cat-on-screen/
         <!-- 你的内容 -->
     </div>
     <script>
-        // 点击关闭
-        document.getElementById('overlay').addEventListener('click', () => {
+        // 双击关闭（避免误触）
+        document.getElementById('overlay').addEventListener('dblclick', () => {
             const overlay = document.getElementById('overlay');
             overlay.style.transition = 'opacity 0.3s';
             overlay.style.opacity = '0';
@@ -262,7 +295,7 @@ scenes/cat-on-screen/
 1. **必须有 `.bg-screenshot` 元素** — 框架通过这个 class 注入屏幕截图
 2. **全屏布局** — 使用 `position: fixed` + `100vw/100vh` 覆盖全屏
 3. **z-index 分层** — 背景截图 z-index: 0，内容层 z-index: 10000+
-4. **点击关闭** — 调用 `window.close()` 即可在 Electron 中关闭窗口
+4. **双击关闭** — 建议用 `dblclick` 事件避免误触，调用 `window.close()` 关闭窗口
 5. **禁止 nodeIntegration** — 窗口创建时已关闭，HTML 中只能用浏览器原生 API
 
 ## 常用技巧
