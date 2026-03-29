@@ -1,0 +1,9 @@
+{
+  "id": "cat-paw",
+  "name": "猫咪爪子",
+  "author": "Gladys",
+  "description": "一只可爱的猫咪爪子拍打屏幕，提醒你休息",
+  "duration": 6,
+  "tags": ["cute", "cat", "interactive"],
+  "version": "1.0.0"
+}

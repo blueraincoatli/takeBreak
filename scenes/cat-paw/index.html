@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cat Paw Slap</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            position: fixed; top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            overflow: hidden;
+            -webkit-user-select: none;
+            user-select: none;
+            font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+        }
+
+        .bg-screenshot {
+            position: fixed; top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            background: #1a1a2e no-repeat center center;
+            background-size: 100vw 100vh;
+            z-index: 0;
+        }
+
+        .overlay {
+            position: fixed; top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            background: rgba(0, 0, 0, 0.45);
+            cursor: pointer;
+            z-index: 10000;
+            animation: fadeIn 0.3s ease forwards;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translate(0, 0); }
+            10% { transform: translate(-10px, 5px); }
+            20% { transform: translate(8px, -8px); }
+            30% { transform: translate(-6px, 3px); }
+            40% { transform: translate(5px, -3px); }
+            50% { transform: translate(-3px, 5px); }
+            60% { transform: translate(3px, -2px); }
+            70% { transform: translate(-2px, 2px); }
+        }
+
+        .shake-screen {
+            animation: shake 0.5s ease-out;
+        }
+
+        /* Cat paw container - rises from bottom, retracts back down */
+        /* bottom: 0 anchors image bottom to screen bottom, translateY moves it */
+        .cat-arm-container {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100vw;
+            z-index: 10002;
+            will-change: transform;
+            filter: drop-shadow(0 8px 30px rgba(0,0,0,0.5));
+            transform: translateY(100%);
+        }
+
+        /* Phase 1: Rise up from bottom */
+        .phase-drop-in {
+            animation: riseUp 0.4s cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+        }
+
+        @keyframes riseUp {
+            0% {
+                transform: translateY(100%);
+            }
+            100% {
+                transform: translateY(40%);
+            }
+        }
+
+        /* Phase 2: Slap up with bounce */
+        .phase-slap {
+            animation: slapUp 0.3s cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+        }
+
+        @keyframes slapUp {
+            0% {
+                transform: translateY(40%) scale(1);
+            }
+            40% {
+                transform: translateY(-5%) scale(1.08) rotate(2deg);
+            }
+            65% {
+                transform: translateY(5%) scale(0.96) rotate(-1deg);
+            }
+            85% {
+                transform: translateY(-2%) scale(1.02) rotate(0.5deg);
+            }
+            100% {
+                transform: translateY(0%) scale(1) rotate(0deg);
+            }
+        }
+
+        /* Phase 3: Retract back down below screen */
+        .phase-retract {
+            animation: retractDown 0.5s cubic-bezier(0.55, 0.085, 0.68, 0.53) forwards;
+        }
+
+        @keyframes retractDown {
+            0% {
+                transform: translateY(0%);
+            }
+            100% {
+                transform: translateY(110%);
+            }
+        }
+
+        /* Reminder text */
+        .reminder-text {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 10003;
+            opacity: 0;
+            text-align: center;
+            pointer-events: none;
+        }
+
+        .reminder-text.visible {
+            animation: textPopIn 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        @keyframes textPopIn {
+            0% {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(0.5);
+            }
+            60% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1.08);
+            }
+            100% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1);
+            }
+        }
+
+        .reminder-text .main-text {
+            font-size: 42px;
+            font-weight: 700;
+            color: #fff;
+            text-shadow:
+                0 2px 10px rgba(0, 0, 0, 0.7),
+                0 0 30px rgba(255, 150, 180, 0.3);
+            letter-spacing: 2px;
+            line-height: 1.5;
+            padding: 20px 40px;
+            background: rgba(255, 100, 130, 0.25);
+            border-radius: 20px;
+            border: 2px solid rgba(255, 180, 200, 0.3);
+            -webkit-backdrop-filter: blur(8px);
+            backdrop-filter: blur(8px);
+        }
+
+        .reminder-text .sub-text {
+            margin-top: 16px;
+            font-size: 18px;
+            color: rgba(255, 220, 230, 0.8);
+            letter-spacing: 1px;
+        }
+
+        /* White flash on impact */
+        .flash {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            background: rgba(255, 200, 210, 0.3);
+            z-index: 10005;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .flash.active {
+            animation: flashBang 0.15s ease-out forwards;
+        }
+
+        @keyframes flashBang {
+            0% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+
+        /* Ripple on impact point */
+        .impact-ripple {
+            position: fixed;
+            left: 50%;
+            top: 50%;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: 3px solid rgba(255, 150, 180, 0.6);
+            z-index: 10001;
+            opacity: 0;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+        }
+
+        .impact-ripple.active {
+            animation: rippleExpand 0.6s ease-out forwards;
+        }
+
+        @keyframes rippleExpand {
+            0% {
+                width: 20px; height: 20px;
+                opacity: 0.8;
+            }
+            100% {
+                width: 350px; height: 350px;
+                opacity: 0;
+            }
+        }
+
+        .cat-arm-img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-screenshot"></div>
+
+    <div class="overlay" id="overlay">
+        <div class="flash" id="flash"></div>
+        <div class="impact-ripple" id="ripple"></div>
+
+        <!-- Animated cat arm from WebP -->
+        <div class="cat-arm-container" id="catArm">
+            <img src="Comfyui_00002_.webp" alt="cat paw" style="width: 100%; display: block;" />
+        </div>
+
+        <!-- Reminder text -->
+        <div class="reminder-text" id="reminderText">
+            <div class="main-text" id="mainText"></div>
+            <div class="sub-text">- 点击任意位置关闭 -</div>
+        </div>
+    </div>
+
+    <script>
+        const messages = [
+            '你再这样坐着，我可要报警了哦!',
+            '本喵已经拨打120了，急救车马上到!',
+            '你的屁股已经和椅子融为一体了吧...',
+            '都坐了这么久了，你是想长蘑菇吗?',
+            '猫都比你勤快! 本喵一天巡视领地8次!',
+            '起床! 再不起来我就把你的键盘踩烂!',
+            '久坐警告：你的椅子快被你坐穿了!',
+            '站起来! 不然我就趴在你键盘上不走了!'
+        ];
+
+        const msg = messages[Math.floor(Math.random() * messages.length)];
+        document.getElementById('mainText').textContent = msg;
+
+        const overlay = document.getElementById('overlay');
+        const catArm = document.getElementById('catArm');
+        const flash = document.getElementById('flash');
+        const ripple = document.getElementById('ripple');
+        const reminderText = document.getElementById('reminderText');
+
+        // -- Sound Effects via Web Audio API --
+
+        function createAudioContext() {
+            const AC = window.AudioContext || window.webkitAudioContext;
+            return AC ? new AC() : null;
+        }
+
+        function playSlapSound(audioCtx) {
+            if (!audioCtx) return;
+            const now = audioCtx.currentTime;
+
+            // Low-frequency thud
+            const thudOsc = audioCtx.createOscillator();
+            const thudGain = audioCtx.createGain();
+            thudOsc.type = 'sine';
+            thudOsc.frequency.setValueAtTime(150, now);
+            thudOsc.frequency.exponentialRampToValueAtTime(50, now + 0.15);
+            thudGain.gain.setValueAtTime(0.5, now);
+            thudGain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+            thudOsc.connect(thudGain).connect(audioCtx.destination);
+            thudOsc.start(now);
+            thudOsc.stop(now + 0.25);
+
+            // Short noise burst
+            const bufferSize = audioCtx.sampleRate * 0.08;
+            const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = noiseBuffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
+            }
+            const noiseSource = audioCtx.createBufferSource();
+            noiseSource.buffer = noiseBuffer;
+            const noiseGain = audioCtx.createGain();
+            noiseGain.gain.setValueAtTime(0.35, now);
+            noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+            const noiseFilter = audioCtx.createBiquadFilter();
+            noiseFilter.type = 'highpass';
+            noiseFilter.frequency.value = 800;
+            noiseSource.connect(noiseFilter).connect(noiseGain).connect(audioCtx.destination);
+            noiseSource.start(now);
+            noiseSource.stop(now + 0.1);
+        }
+
+        function playMeowSound(audioCtx) {
+            if (!audioCtx) return;
+            const now = audioCtx.currentTime;
+
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            const filter = audioCtx.createBiquadFilter();
+
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(400, now);
+            osc.frequency.linearRampToValueAtTime(700, now + 0.15);
+            osc.frequency.linearRampToValueAtTime(350, now + 0.45);
+
+            filter.type = 'bandpass';
+            filter.frequency.value = 550;
+            filter.Q.value = 2;
+
+            gain.gain.setValueAtTime(0.001, now);
+            gain.gain.linearRampToValueAtTime(0.3, now + 0.05);
+            gain.gain.linearRampToValueAtTime(0.25, now + 0.15);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+
+            osc.connect(filter).connect(gain).connect(audioCtx.destination);
+            osc.start(now);
+            osc.stop(now + 0.55);
+        }
+
+        // -- Animation Timeline --
+
+        let audioCtx = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = createAudioContext();
+            }
+            return audioCtx;
+        }
+
+        // T=0.3s: Paw rises from bottom
+        setTimeout(() => {
+            initAudio();
+            catArm.classList.add('phase-drop-in');
+        }, 300);
+
+        // T=0.7s: Slap impact
+        setTimeout(() => {
+            catArm.classList.remove('phase-drop-in');
+            catArm.style.transform = 'translateY(40%)';
+            catArm.classList.add('phase-slap');
+
+            flash.classList.add('active');
+            ripple.classList.add('active');
+            overlay.classList.add('shake-screen');
+
+            playSlapSound(audioCtx);
+        }, 700);
+
+        // T=1.0s: Meow
+        setTimeout(() => {
+            playMeowSound(audioCtx);
+        }, 1000);
+
+        // T=1.5s: Arm retracts upward
+        setTimeout(() => {
+            catArm.classList.remove('phase-slap');
+            catArm.classList.add('phase-retract');
+            // Hide after retract completes to stop WebP animation loop
+            setTimeout(() => { catArm.style.display = 'none'; }, 600);
+        }, 1500);
+
+        // T=2.0s: Reminder text
+        setTimeout(() => {
+            reminderText.classList.add('visible');
+        }, 2000);
+
+        // T=5.5s: Everything fades
+        setTimeout(() => {
+            overlay.style.animation = 'fadeOut 0.5s ease forwards';
+        }, 5500);
+
+        // Click to close
+        overlay.addEventListener('click', () => {
+            overlay.style.transition = 'opacity 0.3s';
+            overlay.style.opacity = '0';
+            setTimeout(() => window.close(), 300);
+        });
+    </script>
+</body>
+</html>
