@@ -1,20 +1,22 @@
 {
-  "name": "takebreak",
-  "version": "1.0.0",
-  "description": "TakeBreak - creative break reminders, random scene playback triggered by heartbeat",
-  "main": "main.js",
-  "scripts": {
-    "start": "electron .",
-    "test": "curl --noproxy localhost -s http://localhost:3721/heartbeat"
-  },
-  "keywords": [
-    "takebreak",
-    "scene-player",
-    "break-reminder"
-  ],
-  "license": "MIT",
-  "dependencies": {
-    "electron": "^35.0.0",
-    "sharp": "^0.34.5"
-  }
+    "name": "takebreak",
+    "version": "1.0.0",
+    "description": "TakeBreak - creative break reminders, random scene playback triggered by heartbeat",
+    "main": "main.js",
+    "scripts": {
+        "start": "electron .",
+        "test": "curl --noproxy localhost -s http://localhost:3721/heartbeat"
+    },
+    "keywords": [
+        "takebreak",
+        "scene-player",
+        "break-reminder"
+    ],
+    "license": "MIT",
+    "dependencies": {
+        "sharp": "^0.34.5"
+    },
+    "devDependencies": {
+        "electron": "^36.9.5"
+    }
 }

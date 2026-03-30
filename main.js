@@ -1,4 +1,7 @@
-const { app, BrowserWindow, desktopCapturer, screen } = require('electron');
+// TakeBreak main.js - Deferred electron loading
+// electron module is only available after browser_init runs
+// We use a lazy getter pattern to avoid the timing issue
+
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -9,6 +12,19 @@ const SCENES_DIR = path.join(__dirname, 'scenes');
 
 let currentWindow = null;
 
+// Lazy electron getter - resolves after browser_init has run
+function getElectron() {
+  const Module = require('module');
+  const cached = Module._cache['electron'];
+  if (cached) return cached.exports;
+  // Try direct require (may work if _resolveFilename is patched)
+  try {
+    const e = require('electron');
+    if (e && typeof e === 'object' && e.app) return e;
+  } catch (_) {}
+  return null;
+}
+
 function getScenes() {
   if (!fs.existsSync(SCENES_DIR)) return [];
   return fs.readdirSync(SCENES_DIR).filter(f =>
@@ -18,6 +34,9 @@ function getScenes() {
 }
 
 async function captureScreen() {
+  const electron = getElectron();
+  if (!electron) return null;
+  const { desktopCapturer, screen } = electron;
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width, height } = primaryDisplay.size;
   const scaleFactor = primaryDisplay.scaleFactor;
@@ -32,6 +51,13 @@ async function captureScreen() {
 }
 
 async function showRandomScene() {
+  const electron = getElectron();
+  if (!electron) {
+    console.log('[TakeBreak] Electron not ready yet');
+    return;
+  }
+  const { BrowserWindow } = electron;
+
   if (currentWindow && !currentWindow.isDestroyed()) {
     currentWindow.close();
     currentWindow = null;
@@ -50,18 +76,8 @@ async function showRandomScene() {
   let screenshotPath = null;
   try {
     screenshotPath = await captureScreen();
-    console.log(`[TakeBreak] Screenshot captured`);
   } catch (e) {
     console.log(`[TakeBreak] Screenshot failed: ${e.message}`);
-  }
-
-  let duration = 8;
-  const manifestPath = path.join(sceneDir, 'manifest.json');
-  if (fs.existsSync(manifestPath)) {
-    try {
-      const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-      duration = manifest.duration || duration;
-    } catch (_) {}
   }
 
   currentWindow = new BrowserWindow({
@@ -140,18 +156,34 @@ const server = http.createServer((req, res) => {
   res.end(JSON.stringify({ error: 'Not found', endpoints: ['/heartbeat', '/health', '/scenes'] }));
 });
 
-app.whenReady().then(() => {
-  server.listen(PORT, () => {
-    console.log(`[TakeBreak] v1.0.0`);
-    console.log(`  Heartbeat: http://localhost:${PORT}/heartbeat`);
-    console.log(`  Health:    http://localhost:${PORT}/health`);
-    console.log(`  Scenes:    ${getScenes().join(', ') || '(none)'}`);
+// Use setImmediate to defer electron access until after browser_init
+setImmediate(() => {
+  const electron = getElectron();
+  if (!electron) {
+    console.error('[TakeBreak] Failed to get electron module');
+    process.exit(1);
+    return;
+  }
+
+  const { app } = electron;
+
+  // Single instance lock
+  const gotTheLock = app.requestSingleInstanceLock();
+  if (!gotTheLock) {
+    app.quit();
+    return;
+  }
+
+  app.whenReady().then(() => {
+    server.listen(PORT, () => {
+      console.log(`[TakeBreak] v1.0.0`);
+      console.log(`  Heartbeat: http://localhost:${PORT}/heartbeat`);
+      console.log(`  Health:    http://localhost:${PORT}/health`);
+      console.log(`  Scenes:    ${getScenes().join(', ') || '(none)'}`);
+    });
+  });
+
+  app.on('window-all-closed', () => {
+    // Keep running in background
   });
 });
-
-app.on('window-all-closed', () => {});
-
-const gotTheLock = app.requestSingleInstanceLock();
-if (!gotTheLock) {
-  app.quit();
-}
