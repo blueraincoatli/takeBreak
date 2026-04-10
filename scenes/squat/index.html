@@ -350,17 +350,14 @@
     // ============================================================
     const TARGET_COUNT = 5;
     const THRESHOLDS = {
-      minDescent: 0.18,
-      goodDescent: 0.26,
-      maxSpeed: 0.04,
-      smoothingWindow: 3,
-      minHoldFrames: 2
+      minDescent: 0.12,      // 开始下蹲检测阈值（降低）
+      goodDescent: 0.18,     // 深蹲达标阈值（降低）
+      maxSpeed: 0.02,        // 判断到达底部的速度阈值
+      smoothingWindow: 5,    // 平滑窗口
+      minHoldFrames: 3       // 在底部停留帧数
     };
 
     let internalState = 'STANDING';
-    let standingRefY = null;
-    let heightRef = null;
-    let depthHistory = [];
     let bottomFrameCount = 0;
     let currentCount = 0;
     let completed = false;
@@ -454,7 +451,7 @@
     }
 
     // ============================================================
-    // Squat detection
+    // Squat detection - uses knee angle for better accuracy
     // ============================================================
     function processSquat(landmarks) {
       const lHip = landmarks[POSE_LANDMARKS.LEFT_HIP];
@@ -463,67 +460,54 @@
       const rKnee = landmarks[POSE_LANDMARKS.RIGHT_KNEE];
       const lAnkle = landmarks[POSE_LANDMARKS.LEFT_ANKLE];
       const rAnkle = landmarks[POSE_LANDMARKS.RIGHT_ANKLE];
-      const nose = landmarks[POSE_LANDMARKS.NOSE];
 
-      if (!lHip || !rHip || !lKnee || !rKnee) {
-        showFeedback('请确保全身可见', 2000);
+      if (!lHip || !rHip || !lKnee || !rKnee || !lAnkle || !rAnkle) {
+        return; // Skip if key points missing
+      }
+      if (lHip.visibility < 0.5 || rHip.visibility < 0.5 || 
+          lKnee.visibility < 0.5 || rKnee.visibility < 0.5) {
         return;
       }
 
-      const hipY = (lHip.y + rHip.y) / 2;
-      const ankleY = (lAnkle.y + rAnkle.y) / 2;
+      // Calculate knee angles (smaller = more bent)
+      const leftKneeAngle = threePointAngle(lHip, lKnee, lAnkle);
+      const rightKneeAngle = threePointAngle(rHip, rKnee, rAnkle);
+      const avgKneeAngle = (leftKneeAngle + rightKneeAngle) / 2;
 
-      // Height ref
-      if (nose && nose.visibility > 0.5 && !heightRef) {
-        heightRef = Math.abs(nose.y - ankleY);
-      }
-
-      // Standing ref
-      if (!standingRefY && internalState === 'STANDING') {
-        standingRefY = hipY;
-      }
-
-      // Depth ratio
-      let depthRatio = 0;
-      if (standingRefY && heightRef) {
-        const descent = Math.max(0, hipY - standingRefY);
-        depthRatio = descent / heightRef;
-      }
-
-      // Smooth
-      depthHistory.push(depthRatio);
-      if (depthHistory.length > THRESHOLDS.smoothingWindow) depthHistory.shift();
-      const smoothDepth = depthHistory.reduce((a,b) => a+b, 0) / depthHistory.length;
-
-      const velocity = depthHistory.length > 1
-        ? depthHistory[depthHistory.length-1] - depthHistory[depthHistory.length-2]
-        : 0;
+      // Standing: knee angle ~ 170-180°
+      // Squatting: knee angle ~ 70-100°
+      const SQUAT_ANGLE = 110;  // Below this = squatting
+      const STAND_ANGLE = 150;  // Above this = standing
 
       const t = THRESHOLDS;
+      
       switch (internalState) {
         case 'STANDING':
-          if (smoothDepth > t.minDescent) {
+          if (avgKneeAngle < SQUAT_ANGLE) {
             internalState = 'DESCENDING';
-            showFeedback('下蹲中...', 800);
+            showFeedback('继续下蹲...', 800);
           }
           break;
+
         case 'DESCENDING':
-          if (smoothDepth > t.goodDescent && Math.abs(velocity) < t.maxSpeed) {
+          if (avgKneeAngle < 90) { // Good squat depth
             internalState = 'BOTTOM';
             bottomFrameCount = 0;
-            showFeedback('稳住！', 600);
-          } else if (smoothDepth < t.minDescent) {
-            internalState = 'STANDING';
+            showFeedback('很好！起身', 600);
+          } else if (avgKneeAngle > STAND_ANGLE) {
+            internalState = 'STANDING'; // Gave up
           }
           break;
+
         case 'BOTTOM':
           bottomFrameCount++;
           if (bottomFrameCount >= t.minHoldFrames) {
             internalState = 'ASCENDING';
           }
           break;
+
         case 'ASCENDING':
-          if (smoothDepth < t.minDescent) {
+          if (avgKneeAngle > STAND_ANGLE) {
             internalState = 'COUNTED';
             currentCount++;
             updateCountUI();
@@ -531,17 +515,17 @@
             if (currentCount >= TARGET_COUNT) {
               onComplete();
             } else {
-              showFeedback(`第 ${currentCount} 个！`, 1500);
+              showFeedback(`第 ${currentCount} 个！💪`, 1500);
               setTimeout(() => {
-                if (internalState === 'COUNTED') {
-                  internalState = 'STANDING';
-                  standingRefY = hipY; // Reset ref
-                }
-              }, 400);
+                internalState = 'STANDING';
+              }, 500);
             }
           }
           break;
       }
+
+      // Debug: show angle
+      fpsBadge.textContent = `${Math.round(avgKneeAngle)}°`;
     }
 
     // ============================================================
