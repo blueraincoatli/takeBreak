@@ -434,20 +434,82 @@
         ctx.beginPath();
         ctx.moveTo(mx(pa.x), my(pa.y));
         ctx.lineTo(mx(pb.x), my(pb.y));
-        ctx.strokeStyle = 'rgba(0, 255, 136, 0.8)';
-        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = 'rgba(0, 255, 136, 0.6)';
+        ctx.lineWidth = 2;
         ctx.stroke();
       }
 
-      // Draw points
+      // Draw body silhouette (filled polygon)
+      drawBodySilhouette(landmarks, w, h, mx, my);
+
+      // Draw key points
       for (let i = 0; i < landmarks.length; i++) {
         const p = landmarks[i];
         if (!p || p.visibility < 0.5) continue;
         ctx.beginPath();
-        ctx.arc(mx(p.x), my(p.y), 4, 0, Math.PI * 2);
+        ctx.arc(mx(p.x), my(p.y), 3, 0, Math.PI * 2);
         ctx.fillStyle = p.visibility < 0.7 ? '#ff6644' : '#00ffcc';
         ctx.fill();
       }
+    }
+
+    // ============================================================
+    // Body silhouette drawing
+    // ============================================================
+    function drawBodySilhouette(lm, w, h, mx, my) {
+      // Body outline indices (order matters for path)
+      const bodyPath = [
+        // Left side (from head to foot)
+        POSE_LANDMARKS.NOSE,
+        POSE_LANDMARKS.LEFT_SHOULDER,
+        POSE_LANDMARKS.LEFT_ELBOW,
+        POSE_LANDMARKS.LEFT_WRIST,
+        // Back up to shoulder
+        POSE_LANDMARKS.LEFT_SHOULDER,
+        POSE_LANDMARKS.LEFT_HIP,
+        POSE_LANDMARKS.LEFT_KNEE,
+        POSE_LANDMARKS.LEFT_ANKLE,
+        // Across to right ankle
+        POSE_LANDMARKS.RIGHT_ANKLE,
+        // Right side (from foot to head)
+        POSE_LANDMARKS.RIGHT_KNEE,
+        POSE_LANDMARKS.RIGHT_HIP,
+        POSE_LANDMARKS.RIGHT_SHOULDER,
+        POSE_LANDMARKS.RIGHT_ELBOW,
+        POSE_LANDMARKS.RIGHT_WRIST,
+        // Back to shoulder
+        POSE_LANDMARKS.RIGHT_SHOULDER,
+        // Close path back to nose
+        POSE_LANDMARKS.NOSE
+      ];
+
+      // Collect valid points
+      const points = [];
+      for (const idx of bodyPath) {
+        const p = lm[idx];
+        if (p && p.visibility >= 0.5) {
+          points.push({ x: mx(p.x), y: my(p.y) });
+        }
+      }
+
+      if (points.length < 6) return; // Need enough points
+
+      // Draw filled body silhouette
+      ctx.beginPath();
+      ctx.moveTo(points[0].x, points[0].y);
+      for (let i = 1; i < points.length; i++) {
+        ctx.lineTo(points[i].x, points[i].y);
+      }
+      ctx.closePath();
+
+      // Fill with gradient-like effect
+      ctx.fillStyle = 'rgba(0, 255, 136, 0.15)';
+      ctx.fill();
+
+      // Draw outline
+      ctx.strokeStyle = 'rgba(0, 255, 136, 0.5)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
     }
 
     // ============================================================
