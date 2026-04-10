@@ -457,12 +457,13 @@
     // Body silhouette drawing - draws body parts separately
     // ============================================================
     function drawBodySilhouette(lm, w, h, mx, my) {
-      const vis = 0.5; // visibility threshold
+      // Use lower threshold to draw even with lower visibility
+      const vis = 0.3; 
 
       // Helper to get point
       const get = (idx) => {
         const p = lm[idx];
-        return p && p.visibility >= vis ? { x: mx(p.x), y: my(p.y) } : null;
+        return p && p.visibility >= vis ? { x: mx(p.x), y: my(p.y), orig: p } : null;
       };
 
       // Draw torso (trapezoid shape)
@@ -471,24 +472,28 @@
       const lh = get(POSE_LANDMARKS.LEFT_HIP);
       const rh = get(POSE_LANDMARKS.RIGHT_HIP);
 
-      if (ls && rs && lh && rh) {
-        // Widen shoulders slightly for better shape
-        const shoulderW = Math.abs(rs.x - ls.x);
-        const shoulderExpand = shoulderW * 0.15;
-        const hipExpand = shoulderW * 0.08;
-
-        ctx.beginPath();
-        ctx.moveTo(ls.x - shoulderExpand, ls.y);
-        ctx.lineTo(rs.x + shoulderExpand, rs.y);
-        ctx.lineTo(rh.x + hipExpand, rh.y);
-        ctx.lineTo(lh.x - hipExpand, lh.y);
-        ctx.closePath();
-        ctx.fillStyle = 'rgba(0, 255, 136, 0.2)';
-        ctx.fill();
-        ctx.strokeStyle = 'rgba(0, 255, 136, 0.4)';
-        ctx.lineWidth = 2;
-        ctx.stroke();
+      // If we don't have full torso, try to draw full body outline from any points
+      if (!(ls && rs && lh && rh)) {
+        drawFullOutline(lm, w, h, mx, my);
+        return;
       }
+
+      // Draw torso (trapezoid shape)
+      const shoulderW = Math.abs(rs.x - ls.x);
+      const shoulderExpand = shoulderW * 0.15;
+      const hipExpand = shoulderW * 0.08;
+
+      ctx.beginPath();
+      ctx.moveTo(ls.x - shoulderExpand, ls.y);
+      ctx.lineTo(rs.x + shoulderExpand, rs.y);
+      ctx.lineTo(rh.x + hipExpand, rh.y);
+      ctx.lineTo(lh.x - hipExpand, lh.y);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(0, 255, 136, 0.2)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0, 255, 136, 0.4)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
 
       // Draw head (circle approximation)
       const nose = get(POSE_LANDMARKS.NOSE);
@@ -584,6 +589,67 @@
 
       drawLeg(POSE_LANDMARKS.LEFT_HIP, POSE_LANDMARKS.LEFT_KNEE, POSE_LANDMARKS.LEFT_ANKLE, true);
       drawLeg(POSE_LANDMARKS.RIGHT_HIP, POSE_LANDMARKS.RIGHT_KNEE, POSE_LANDMARKS.RIGHT_ANKLE, false);
+    }
+
+    // ============================================================
+    // Fallback: draw full body outline from any available points
+    // ============================================================
+    function drawFullOutline(lm, w, h, mx, my) {
+      const vis = 0.3;
+      
+      // Collect all visible points with their indices
+      const points = [];
+      const importantIndices = [
+        0, 1, 2, 3, 4, 5, 6, 7,  // face
+        11, 12,  // shoulders
+        13, 14,  // elbows
+        15, 16,  // wrists
+        23, 24,  // hips
+        25, 26,  // knees
+        27, 28   // ankles
+      ];
+      
+      for (const idx of importantIndices) {
+        const p = lm[idx];
+        if (p && p.visibility >= vis) {
+          points.push({ idx, x: mx(p.x), y: my(p.y), visibility: p.visibility });
+        }
+      }
+      
+      if (points.length < 4) return;
+      
+      // Sort by y position to build outline
+      points.sort((a, b) => a.y - b.y);
+      
+      // Find leftmost and rightmost points at each height
+      // Build polygon: left side going down, then right side going up
+      const leftPoints = points.filter(p => {
+        const centerX = w / 2;
+        return p.x < centerX;
+      }).sort((a, b) => a.y - b.y);
+      
+      const rightPoints = points.filter(p => {
+        const centerX = w / 2;
+        return p.x >= centerX;
+      }).sort((a, b) => b.y - a.y); // reverse for right side
+      
+      // Combine: go down left side, then up right side
+      const outline = [...leftPoints, ...rightPoints];
+      
+      if (outline.length < 3) return;
+      
+      ctx.beginPath();
+      ctx.moveTo(outline[0].x, outline[0].y);
+      for (let i = 1; i < outline.length; i++) {
+        ctx.lineTo(outline[i].x, outline[i].y);
+      }
+      ctx.closePath();
+      
+      ctx.fillStyle = 'rgba(0, 255, 136, 0.15)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0, 255, 136, 0.4)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
     }
 
     // ============================================================
