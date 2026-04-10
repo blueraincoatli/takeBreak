@@ -1,3 +1,6 @@
 @echo off
-REM TakeBreak silent launcher
-powershell -ExecutionPolicy Bypass -WindowStyle Hidden -File "D:\takeBreak\startup.ps1"
+REM TakeBreak launcher
+REM Must unset ELECTRON_RUN_AS_NODE to enable Electron mode
+set ELECTRON_RUN_AS_NODE=
+cd /d D:\takeBreak
+start "" "node_modules\electron\dist\electron.exe" .

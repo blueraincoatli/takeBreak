@@ -1,0 +1,9 @@
+{
+  "id": "squat",
+  "name": "深蹲挑战",
+  "author": "hongyu",
+  "description": "做一个深蹲才能关闭提醒",
+  "duration": 30,
+  "tags": ["运动", "健康"],
+  "version": "1.0.0"
+}

@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>深蹲挑战</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      overflow: hidden;
+      font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+    }
+
+    .bg-screenshot {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      background: #000 no-repeat center center;
+      background-size: 100vw 100vh;
+      z-index: 0;
+    }
+
+    .scene-layer {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      z-index: 10000;
+    }
+
+    #video {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      object-fit: cover;
+      transform: scaleX(-1);
+      z-index: 10001;
+      opacity: 0;
+    }
+
+    #canvas {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      z-index: 10002;
+    }
+
+    /* HUD */
+    .hud {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      z-index: 10010;
+      pointer-events: none;
+    }
+
+    .count-display {
+      position: absolute;
+      top: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      text-align: center;
+    }
+
+    .count-number {
+      font-size: 96px;
+      font-weight: 900;
+      color: #fff;
+      text-shadow: 0 0 20px rgba(0,255,136,0.6), 0 4px 0 rgba(0,0,0,0.3);
+      line-height: 1;
+      transition: transform 0.15s ease;
+    }
+
+    .count-number.pop {
+      transform: scale(1.3);
+    }
+
+    .count-label {
+      font-size: 18px;
+      color: rgba(255,255,255,0.7);
+      margin-top: 4px;
+      letter-spacing: 2px;
+    }
+
+    .progress-bar {
+      position: absolute;
+      top: 30px;
+      left: 30px;
+      width: 6px;
+      height: calc(100vh - 60px);
+      background: rgba(255,255,255,0.15);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      background: linear-gradient(to top, #00ff88, #00ccff);
+      border-radius: 3px;
+      transition: height 0.3s ease;
+    }
+
+    .feedback-text {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 32px;
+      font-weight: bold;
+      color: #fff;
+      text-shadow: 0 0 30px rgba(0,255,136,0.8);
+      text-align: center;
+      opacity: 0;
+      transition: opacity 0.2s;
+      pointer-events: none;
+    }
+
+    .feedback-text.show {
+      opacity: 1;
+    }
+
+    .fps-badge {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: rgba(0,0,0,0.5);
+      color: #00ff88;
+      font-size: 12px;
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
+
+    /* Corner instruction */
+    .corner-tip {
+      position: absolute;
+      bottom: 30px;
+      right: 30px;
+      color: rgba(255,255,255,0.4);
+      font-size: 13px;
+      text-align: right;
+    }
+
+    /* Completion overlay */
+    .complete-overlay {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      background: rgba(0,0,0,0);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 20000;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.5s;
+    }
+
+    .complete-overlay.show {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    .complete-card {
+      background: rgba(0,0,0,0.85);
+      border: 2px solid #00ff88;
+      border-radius: 24px;
+      padding: 48px 64px;
+      text-align: center;
+      transform: scale(0.8);
+      transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .complete-overlay.show .complete-card {
+      transform: scale(1);
+    }
+
+    .complete-icon {
+      font-size: 72px;
+      margin-bottom: 16px;
+    }
+
+    .complete-title {
+      font-size: 42px;
+      font-weight: 900;
+      color: #00ff88;
+      text-shadow: 0 0 20px rgba(0,255,136,0.5);
+      margin-bottom: 8px;
+    }
+
+    .complete-subtitle {
+      font-size: 20px;
+      color: rgba(255,255,255,0.7);
+    }
+
+    /* Loading state */
+    .loading-overlay {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      background: #1a1a2e;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 30000;
+      transition: opacity 0.5s;
+    }
+
+    .loading-overlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .loading-spinner {
+      width: 60px; height: 60px;
+      border: 4px solid rgba(0,255,136,0.2);
+      border-top-color: #00ff88;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-bottom: 20px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading-text {
+      color: rgba(255,255,255,0.7);
+      font-size: 16px;
+    }
+
+    /* Top banner */
+    .top-banner {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw;
+      padding: 18px 0;
+      background: linear-gradient(to bottom, rgba(0,0,0,0.6), transparent);
+      text-align: center;
+      z-index: 10008;
+    }
+
+    .top-banner-text {
+      font-size: 22px;
+      font-weight: bold;
+      color: #fff;
+      letter-spacing: 4px;
+      text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+    }
+
+    .top-banner-icon {
+      display: inline-block;
+      margin-right: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-screenshot"></div>
+
+  <video id="video" autoplay playsinline></video>
+  <canvas id="canvas"></canvas>
+
+  <div class="scene-layer">
+    <div class="top-banner">
+      <span class="top-banner-icon">🏋️</span>
+      <span class="top-banner-text">休息一下！做几个深蹲</span>
+    </div>
+
+    <div class="hud">
+      <div class="count-display">
+        <div class="count-number" id="countNum">0</div>
+        <div class="count-label" id="countLabel">0 / 5</div>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill" id="progressFill" style="height: 0%"></div>
+      </div>
+      <div class="feedback-text" id="feedbackText"></div>
+      <div class="fps-badge" id="fpsBadge">-- FPS</div>
+      <div class="corner-tip">摄像头只在你本地运行<br>不录制，不上传</div>
+    </div>
+
+    <div class="complete-overlay" id="completeOverlay">
+      <div class="complete-card">
+        <div class="complete-icon">🎉</div>
+        <div class="complete-title" id="completeTitle">完成！</div>
+        <div class="complete-subtitle" id="completeSubtitle">太棒了！休息结束</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-spinner"></div>
+    <div class="loading-text" id="loadingText">正在加载动作检测模型...</div>
+  </div>
+
+  <script type="module">
+    // ============================================================
+    // MediaPipe Pose Keypoints
+    // ============================================================
+    const POSE_LANDMARKS = {
+      NOSE: 0, LEFT_EYE_INNER: 1, LEFT_EYE: 2, LEFT_EYE_OUTER: 3,
+      RIGHT_EYE_INNER: 4, RIGHT_EYE: 5, RIGHT_EYE_OUTER: 6,
+      LEFT_EAR: 7, RIGHT_EAR: 8,
+      MOUTH_LEFT: 9, MOUTH_RIGHT: 10,
+      LEFT_SHOULDER: 11, RIGHT_SHOULDER: 12,
+      LEFT_ELBOW: 13, RIGHT_ELBOW: 14,
+      LEFT_WRIST: 15, RIGHT_WRIST: 16,
+      LEFT_PINKY: 17, RIGHT_PINKY: 18,
+      LEFT_INDEX: 19, RIGHT_INDEX: 20,
+      LEFT_THUMB: 21, RIGHT_THUMB: 22,
+      LEFT_HIP: 23, RIGHT_HIP: 24,
+      LEFT_KNEE: 25, RIGHT_KNEE: 26,
+      LEFT_ANKLE: 27, RIGHT_ANKLE: 28,
+      LEFT_HEEL: 29, RIGHT_HEEL: 30,
+      LEFT_FOOT_INDEX: 31, RIGHT_FOOT_INDEX: 32
+    };
+
+    const POSE_CONNECTIONS = [
+      [11,12],[11,23],[12,24],[23,24],
+      [11,13],[13,15],[15,17],[15,19],[15,21],
+      [12,14],[14,16],[16,18],[16,20],[16,22],
+      [23,25],[25,27],[27,29],[27,31],[29,31],
+      [24,26],[26,28],[28,30],[28,32],[30,32]
+    ];
+
+    // ============================================================
+    // Geometry utils
+    // ============================================================
+    function distance(a, b) {
+      const dx = b.x - a.x, dy = b.y - a.y;
+      return Math.sqrt(dx*dx + dy*dy);
+    }
+
+    function threePointAngle(a, b, c) {
+      const v1 = {x: a.x - b.x, y: a.y - b.y};
+      const v2 = {x: c.x - b.x, y: c.y - b.y};
+      const dot = v1.x*v2.x + v1.y*v2.y;
+      const m1 = Math.sqrt(v1.x*v1.x + v1.y*v1.y);
+      const m2 = Math.sqrt(v2.x*v2.x + v2.y*v2.y);
+      if (!m1 || !m2) return 90;
+      return Math.acos(Math.max(-1, Math.min(1, dot/(m1*m2)))) * 180 / Math.PI;
+    }
+
+    // ============================================================
+    // Squat state machine
+    // ============================================================
+    const TARGET_COUNT = 5;
+    const THRESHOLDS = {
+      minDescent: 0.18,
+      goodDescent: 0.26,
+      maxSpeed: 0.04,
+      smoothingWindow: 3,
+      minHoldFrames: 2
+    };
+
+    let internalState = 'STANDING';
+    let standingRefY = null;
+    let heightRef = null;
+    let depthHistory = [];
+    let bottomFrameCount = 0;
+    let currentCount = 0;
+    let completed = false;
+
+    // ============================================================
+    // DOM refs
+    // ============================================================
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const countNum = document.getElementById('countNum');
+    const countLabel = document.getElementById('countLabel');
+    const progressFill = document.getElementById('progressFill');
+    const feedbackText = document.getElementById('feedbackText');
+    const fpsBadge = document.getElementById('fpsBadge');
+    const completeOverlay = document.getElementById('completeOverlay');
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    const loadingText = document.getElementById('loadingText');
+
+    let lastFrameTime = 0;
+    let fpsHistory = [];
+
+    // ============================================================
+    // Canvas resize
+    // ============================================================
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    // ============================================================
+    // Show feedback helper
+    // ============================================================
+    let feedbackTimeout = null;
+    function showFeedback(text, duration = 1200) {
+      feedbackText.textContent = text;
+      feedbackText.classList.add('show');
+      if (feedbackTimeout) clearTimeout(feedbackTimeout);
+      feedbackTimeout = setTimeout(() => {
+        feedbackText.classList.remove('show');
+      }, duration);
+    }
+
+    function updateCountUI() {
+      countNum.textContent = currentCount;
+      countLabel.textContent = `${currentCount} / ${TARGET_COUNT}`;
+      progressFill.style.height = `${(currentCount / TARGET_COUNT) * 100}%`;
+
+      // Pop animation
+      countNum.classList.add('pop');
+      setTimeout(() => countNum.classList.remove('pop'), 150);
+    }
+
+    // ============================================================
+    // Skeleton rendering
+    // ============================================================
+    function drawSkeleton(landmarks) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const w = canvas.width, h = canvas.height;
+      const mirror = true;
+
+      function mx(x) { return mirror ? w - x * w : x * w; }
+      function my(y) { return y * h; }
+
+      // Draw connections
+      for (const [a, b] of POSE_CONNECTIONS) {
+        const pa = landmarks[a], pb = landmarks[b];
+        if (!pa || !pb) continue;
+        if (pa.visibility < 0.5 || pb.visibility < 0.5) continue;
+
+        ctx.beginPath();
+        ctx.moveTo(mx(pa.x), my(pa.y));
+        ctx.lineTo(mx(pb.x), my(pb.y));
+        ctx.strokeStyle = 'rgba(0, 255, 136, 0.8)';
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+      }
+
+      // Draw points
+      for (let i = 0; i < landmarks.length; i++) {
+        const p = landmarks[i];
+        if (!p || p.visibility < 0.5) continue;
+        ctx.beginPath();
+        ctx.arc(mx(p.x), my(p.y), 4, 0, Math.PI * 2);
+        ctx.fillStyle = p.visibility < 0.7 ? '#ff6644' : '#00ffcc';
+        ctx.fill();
+      }
+    }
+
+    // ============================================================
+    // Squat detection
+    // ============================================================
+    function processSquat(landmarks) {
+      const lHip = landmarks[POSE_LANDMARKS.LEFT_HIP];
+      const rHip = landmarks[POSE_LANDMARKS.RIGHT_HIP];
+      const lKnee = landmarks[POSE_LANDMARKS.LEFT_KNEE];
+      const rKnee = landmarks[POSE_LANDMARKS.RIGHT_KNEE];
+      const lAnkle = landmarks[POSE_LANDMARKS.LEFT_ANKLE];
+      const rAnkle = landmarks[POSE_LANDMARKS.RIGHT_ANKLE];
+      const nose = landmarks[POSE_LANDMARKS.NOSE];
+
+      if (!lHip || !rHip || !lKnee || !rKnee) {
+        showFeedback('请确保全身可见', 2000);
+        return;
+      }
+
+      const hipY = (lHip.y + rHip.y) / 2;
+      const ankleY = (lAnkle.y + rAnkle.y) / 2;
+
+      // Height ref
+      if (nose && nose.visibility > 0.5 && !heightRef) {
+        heightRef = Math.abs(nose.y - ankleY);
+      }
+
+      // Standing ref
+      if (!standingRefY && internalState === 'STANDING') {
+        standingRefY = hipY;
+      }
+
+      // Depth ratio
+      let depthRatio = 0;
+      if (standingRefY && heightRef) {
+        const descent = Math.max(0, hipY - standingRefY);
+        depthRatio = descent / heightRef;
+      }
+
+      // Smooth
+      depthHistory.push(depthRatio);
+      if (depthHistory.length > THRESHOLDS.smoothingWindow) depthHistory.shift();
+      const smoothDepth = depthHistory.reduce((a,b) => a+b, 0) / depthHistory.length;
+
+      const velocity = depthHistory.length > 1
+        ? depthHistory[depthHistory.length-1] - depthHistory[depthHistory.length-2]
+        : 0;
+
+      const t = THRESHOLDS;
+      switch (internalState) {
+        case 'STANDING':
+          if (smoothDepth > t.minDescent) {
+            internalState = 'DESCENDING';
+            showFeedback('下蹲中...', 800);
+          }
+          break;
+        case 'DESCENDING':
+          if (smoothDepth > t.goodDescent && Math.abs(velocity) < t.maxSpeed) {
+            internalState = 'BOTTOM';
+            bottomFrameCount = 0;
+            showFeedback('稳住！', 600);
+          } else if (smoothDepth < t.minDescent) {
+            internalState = 'STANDING';
+          }
+          break;
+        case 'BOTTOM':
+          bottomFrameCount++;
+          if (bottomFrameCount >= t.minHoldFrames) {
+            internalState = 'ASCENDING';
+          }
+          break;
+        case 'ASCENDING':
+          if (smoothDepth < t.minDescent) {
+            internalState = 'COUNTED';
+            currentCount++;
+            updateCountUI();
+
+            if (currentCount >= TARGET_COUNT) {
+              onComplete();
+            } else {
+              showFeedback(`第 ${currentCount} 个！`, 1500);
+              setTimeout(() => {
+                if (internalState === 'COUNTED') {
+                  internalState = 'STANDING';
+                  standingRefY = hipY; // Reset ref
+                }
+              }, 400);
+            }
+          }
+          break;
+      }
+    }
+
+    // ============================================================
+    // Completion
+    // ============================================================
+    async function onComplete() {
+      completed = true;
+      completeOverlay.classList.add('show');
+      playSuccessSound();
+      showFeedback('太棒了！🎉', 3000);
+
+      // Notify main process via HTTP, then close
+      setTimeout(async () => {
+        try {
+          await fetch('http://localhost:3721/api/scene-complete', {method: 'POST'});
+        } catch (_) {}
+        setTimeout(() => window.close(), 1500);
+      }, 2000);
+    }
+
+    function playSuccessSound() {
+      try {
+        const ac = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ac.createOscillator();
+        const gain = ac.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(523, ac.currentTime);
+        osc.frequency.setValueAtTime(659, ac.currentTime + 0.1);
+        osc.frequency.setValueAtTime(784, ac.currentTime + 0.2);
+        gain.gain.setValueAtTime(0.3, ac.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.6);
+        osc.connect(gain);
+        gain.connect(ac.destination);
+        osc.start();
+        osc.stop(ac.currentTime + 0.6);
+      } catch(_) {}
+    }
+
+    // ============================================================
+    // MediaPipe Pose
+    // ============================================================
+    let poseLandmarker = null;
+
+    async function initMediaPipe() {
+      loadingText.textContent = '正在加载动作检测模型...';
+
+      const { FilesetResolver, PoseLandmarker } = await import(
+        'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/vision_bundle.js'
+      );
+
+      loadingText.textContent = '初始化摄像头...';
+
+      const vision = await FilesetResolver.forVisionTasks(
+        'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
+      );
+
+      poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath:
+            'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',
+          delegate: 'GPU'
+        },
+        runningMode: 'VIDEO',
+        numPoses: 1,
+        minPoseDetectionConfidence: 0.5,
+        minPosePresenceConfidence: 0.5,
+        minTrackingConfidence: 0.5
+      });
+
+      loadingText.textContent = '启动摄像头...';
+    }
+
+    async function startCamera() {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          facingMode: 'user'
+        }
+      });
+      video.srcObject = stream;
+      await video.play();
+    }
+
+    function detectLoop() {
+      if (!poseLandmarker || !video.videoWidth) {
+        requestAnimationFrame(detectLoop);
+        return;
+      }
+
+      const now = performance.now();
+
+      // FPS
+      if (lastFrameTime > 0) {
+        const elapsed = now - lastFrameTime;
+        if (fpsHistory.length > 10) fpsHistory.shift();
+        fpsHistory.push(1000 / elapsed);
+        const fps = Math.round(fpsHistory.reduce((a,b)=>a+b,0) / fpsHistory.length);
+        fpsBadge.textContent = `${fps} FPS`;
+      }
+      lastFrameTime = now;
+
+      if (!completed) {
+        try {
+          const results = poseLandmarker.detectForVideo(video, now);
+          if (results.landmarks && results.landmarks.length > 0) {
+            const landmarks = results.landmarks[0];
+            drawSkeleton(landmarks);
+            processSquat(landmarks);
+          }
+        } catch(e) {
+          // silently skip frame
+        }
+      }
+
+      requestAnimationFrame(detectLoop);
+    }
+
+    // ============================================================
+    // Bootstrap
+    // ============================================================
+    (async () => {
+      try {
+        await initMediaPipe();
+        await startCamera();
+
+        // Hide loading
+        loadingOverlay.classList.add('hidden');
+        setTimeout(() => loadingOverlay.remove(), 600);
+
+        showFeedback('请站好，开始深蹲！', 2000);
+        detectLoop();
+      } catch (err) {
+        loadingText.textContent = `启动失败: ${err.message}`;
+        console.error(err);
+      }
+    })();
+  </script>
+</body>
+</html>

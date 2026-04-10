@@ -12,15 +12,33 @@ const SCENES_DIR = path.join(__dirname, 'scenes');
 
 let currentWindow = null;
 
-// Lazy electron getter - resolves after browser_init has run
+// Lazy electron getter
+// In Electron 36+, require('electron') may be intercepted by the npm package
+// which returns the exe path string instead of the built-in module.
 function getElectron() {
-  const Module = require('module');
-  const cached = Module._cache['electron'];
-  if (cached) return cached.exports;
-  // Try direct require (may work if _resolveFilename is patched)
   try {
     const e = require('electron');
-    if (e && typeof e === 'object' && e.app) return e;
+    if (e && typeof e === 'object' && (e.app || e.BrowserWindow)) return e;
+
+    // npm package shadowing built-in — bypass it
+    if (typeof e === 'string') {
+      const Module = require('module');
+      const npmPath = require.resolve('electron');
+      delete Module._cache[npmPath];
+
+      const origResolve = Module._resolveFilename;
+      Module._resolveFilename = function(request, parent, isMain, options) {
+        if (request === 'electron') return request;
+        return origResolve.apply(this, arguments);
+      };
+
+      try {
+        const real = require('electron');
+        if (real && typeof real === 'object' && real.app) return real;
+      } catch (_) {}
+
+      Module._resolveFilename = origResolve;
+    }
   } catch (_) {}
   return null;
 }
@@ -50,7 +68,7 @@ async function captureScreen() {
   return screenshotPath;
 }
 
-async function showRandomScene() {
+async function showRandomScene(sceneName) {
   const electron = getElectron();
   if (!electron) {
     console.log('[TakeBreak] Electron not ready yet');
@@ -69,7 +87,10 @@ async function showRandomScene() {
     return;
   }
 
-  const sceneName = scenes[Math.floor(Math.random() * scenes.length)];
+  // Use provided scene name or pick random
+  if (!sceneName || !scenes.includes(sceneName)) {
+    sceneName = scenes[Math.floor(Math.random() * scenes.length)];
+  }
   const sceneDir = path.join(SCENES_DIR, sceneName);
   const scenePath = path.join(sceneDir, 'index.html');
 
@@ -119,13 +140,31 @@ const server = http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Content-Type', 'application/json');
 
+  // POST /api/scene-complete — called by a scene when it wants to close
+  if (req.method === 'POST' && req.url === '/api/scene-complete') {
+    if (currentWindow && !currentWindow.isDestroyed()) {
+      currentWindow.close();
+      currentWindow = null;
+    }
+    res.writeHead(200);
+    res.end(JSON.stringify({ status: 'ok', action: 'window_closed' }));
+    return;
+  }
+
   if (req.method !== 'GET') {
     res.writeHead(405);
     return res.end(JSON.stringify({ error: 'Method not allowed' }));
   }
 
-  if (req.url === '/heartbeat' || req.url === '/remind') {
-    showRandomScene().then(() => {
+  if (req.url === '/heartbeat' || req.url === '/remind' || req.url.startsWith('/remind?') || req.url.startsWith('/heartbeat?')) {
+    // Parse ?scene= query param for testing
+    let sceneName = null;
+    try {
+      const url = new URL(req.url, `http://localhost:${PORT}`);
+      sceneName = url.searchParams.get('scene');
+    } catch(_) {}
+
+    showRandomScene(sceneName).then(() => {
       res.end(JSON.stringify({ status: 'ok', action: 'scene_triggered', scenes: getScenes() }));
     }).catch(err => {
       res.writeHead(500);
@@ -156,23 +195,29 @@ const server = http.createServer((req, res) => {
   res.end(JSON.stringify({ error: 'Not found', endpoints: ['/heartbeat', '/health', '/scenes'] }));
 });
 
-// Use setImmediate to defer electron access until after browser_init
-setImmediate(() => {
-  const electron = getElectron();
-  if (!electron) {
-    console.error('[TakeBreak] Failed to get electron module');
-    process.exit(1);
-    return;
-  }
+// Initialize Electron app
+const electron = getElectron();
+if (!electron) {
+  console.error('[TakeBreak] Failed to get electron module');
+  process.exit(1);
+}
 
-  const { app } = electron;
+const { app } = electron;
 
-  // Single instance lock
-  const gotTheLock = app.requestSingleInstanceLock();
-  if (!gotTheLock) {
-    app.quit();
-    return;
-  }
+// Single instance lock
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  console.log('[TakeBreak] Another instance is running, quitting');
+  app.quit();
+} else {
+  app.on('window-all-closed', () => {
+    // Keep running in background
+  });
+
+  // Debug: log when app is about to quit
+  app.on('before-quit', (e) => {
+    console.log('[TakeBreak] App is about to quit');
+  });
 
   app.whenReady().then(() => {
     server.listen(PORT, () => {
@@ -182,8 +227,4 @@ setImmediate(() => {
       console.log(`  Scenes:    ${getScenes().join(', ') || '(none)'}`);
     });
   });
-
-  app.on('window-all-closed', () => {
-    // Keep running in background
-  });
-});
+}

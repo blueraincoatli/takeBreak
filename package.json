@@ -1,19 +1,23 @@
 {
     "name": "takebreak",
     "version": "1.0.0",
-    "description": "TakeBreak - creative break reminders, random scene playback triggered by heartbeat",
+    "description": "TakeBreak - AI-powered break reminders with motion detection",
     "main": "main.js",
     "scripts": {
         "start": "electron .",
-        "test": "curl --noproxy localhost -s http://localhost:3721/heartbeat"
+        "test": "curl --noproxy localhost -s http://localhost:3721/heartbeat",
+        "test:detector": "electron scenes-motion/test-detector.html"
     },
     "keywords": [
         "takebreak",
         "scene-player",
-        "break-reminder"
+        "break-reminder",
+        "motion-detection",
+        "mediapipe"
     ],
     "license": "MIT",
     "dependencies": {
+        "@mediapipe/tasks-vision": "^0.10.14",
         "sharp": "^0.34.5"
     },
     "devDependencies": {
