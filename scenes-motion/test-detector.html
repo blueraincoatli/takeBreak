@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Motion Engine 测试</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      min-height: 100vh;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+    }
+
+    h1 {
+      margin-bottom: 10px;
+      font-size: 24px;
+    }
+
+    .subtitle {
+      color: #888;
+      margin-bottom: 20px;
+    }
+
+    .container {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      justify-content: center;
+      width: 100%;
+      max-width: 1200px;
+    }
+
+    .video-container {
+      position: relative;
+      width: 640px;
+      max-width: 100%;
+      aspect-ratio: 4/3;
+      background: #000;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    }
+
+    #camera {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1);
+    }
+
+    #skeleton {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    .status-overlay {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(0,0,0,0.6);
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+
+    .status-overlay .fps {
+      color: #00ff88;
+    }
+
+    .panel {
+      background: rgba(255,255,255,0.05);
+      border-radius: 12px;
+      padding: 20px;
+      min-width: 300px;
+    }
+
+    .panel h2 {
+      font-size: 18px;
+      margin-bottom: 15px;
+      color: #00ccff;
+    }
+
+    .control-group {
+      margin-bottom: 15px;
+    }
+
+    .control-group label {
+      display: block;
+      margin-bottom: 5px;
+      color: #888;
+      font-size: 14px;
+    }
+
+    .control-group select,
+    .control-group input {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #333;
+      border-radius: 6px;
+      background: #1a1a2e;
+      color: #fff;
+      font-size: 14px;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    button.primary {
+      background: linear-gradient(135deg, #00ff88, #00ccff);
+      color: #000;
+    }
+
+    button.primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 20px rgba(0,255,136,0.3);
+    }
+
+    button.danger {
+      background: #ff4444;
+      color: #fff;
+      margin-top: 10px;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .stat-card {
+      background: rgba(0,0,0,0.3);
+      padding: 15px;
+      border-radius: 8px;
+      text-align: center;
+    }
+
+    .stat-card .value {
+      font-size: 36px;
+      font-weight: bold;
+      color: #00ff88;
+    }
+
+    .stat-card .label {
+      font-size: 12px;
+      color: #888;
+      margin-top: 5px;
+    }
+
+    .feedback {
+      margin-top: 20px;
+      padding: 15px;
+      background: rgba(0,0,0,0.3);
+      border-radius: 8px;
+      text-align: center;
+      font-size: 18px;
+      min-height: 50px;
+    }
+
+    .feedback.success {
+      background: rgba(0,255,136,0.2);
+      color: #00ff88;
+    }
+
+    .feedback.warning {
+      background: rgba(255,200,0,0.2);
+      color: #ffc800;
+    }
+
+    .log {
+      margin-top: 20px;
+      max-height: 200px;
+      overflow-y: auto;
+      background: rgba(0,0,0,0.3);
+      padding: 10px;
+      border-radius: 8px;
+      font-family: monospace;
+      font-size: 12px;
+    }
+
+    .log-item {
+      padding: 2px 0;
+      color: #888;
+    }
+
+    .log-item.info { color: #00ccff; }
+    .log-item.success { color: #00ff88; }
+    .log-item.warning { color: #ffc800; }
+    .log-item.error { color: #ff4444; }
+  </style>
+</head>
+<body>
+  <h1>🏃 Motion Engine 测试</h1>
+  <p class="subtitle">MediaPipe Pose + 动作检测</p>
+
+  <div class="container">
+    <div class="video-container">
+      <video id="camera" autoplay playsinline></video>
+      <canvas id="skeleton"></canvas>
+      <div class="status-overlay">
+        FPS: <span class="fps" id="fpsDisplay">--</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>⚙️ 控制面板</h2>
+      
+      <div class="control-group">
+        <label>动作类型</label>
+        <select id="actionType">
+          <option value="squat">深蹲 (Squat)</option>
+          <option value="drink">喝水 (Drink)</option>
+        </select>
+      </div>
+
+      <div class="control-group">
+        <label>目标次数</label>
+        <input type="number" id="targetCount" value="10" min="1" max="100">
+      </div>
+
+      <button class="primary" id="startBtn">开始检测</button>
+      <button class="danger" id="stopBtn" style="display:none;">停止</button>
+
+      <div class="stats">
+        <div class="stat-card">
+          <div class="value" id="countDisplay">0</div>
+          <div class="label">完成次数</div>
+        </div>
+        <div class="stat-card">
+          <div class="value" id="targetDisplay">10</div>
+          <div class="label">目标次数</div>
+        </div>
+      </div>
+
+      <div class="feedback" id="feedback">
+        点击"开始检测"启动摄像头
+      </div>
+
+      <div class="log" id="log"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { MotionDetector, SquatAnalyzer, DrinkAnalyzer, SkeletonRenderer } from '../motion-engine/index.js';
+
+    // DOM 元素
+    const camera = document.getElementById('camera');
+    const skeleton = document.getElementById('skeleton');
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const actionType = document.getElementById('actionType');
+    const targetCount = document.getElementById('targetCount');
+    const countDisplay = document.getElementById('countDisplay');
+    const targetDisplay = document.getElementById('targetDisplay');
+    const feedback = document.getElementById('feedback');
+    const fpsDisplay = document.getElementById('fpsDisplay');
+    const logContainer = document.getElementById('log');
+
+    // 初始化组件
+    let detector = null;
+    let analyzer = null;
+    let renderer = null;
+
+    function log(message, type = 'info') {
+      const item = document.createElement('div');
+      item.className = `log-item ${type}`;
+      item.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      logContainer.insertBefore(item, logContainer.firstChild);
+    }
+
+    function showFeedback(message, type = 'info') {
+      feedback.textContent = message;
+      feedback.className = `feedback ${type}`;
+    }
+
+    function createAnalyzer() {
+      const type = actionType.value;
+      const count = parseInt(targetCount.value) || 10;
+      
+      if (type === 'squat') {
+        return new SquatAnalyzer({ targetCount: count });
+      } else {
+        return new DrinkAnalyzer({ targetCount: count });
+      }
+    }
+
+    async function start() {
+      try {
+        // 设置 canvas 尺寸
+        skeleton.width = camera.videoWidth || 640;
+        skeleton.height = camera.videoHeight || 480;
+
+        // 创建检测器
+        detector = new MotionDetector({ videoElement: camera });
+        renderer = new SkeletonRenderer(skeleton);
+        analyzer = createAnalyzer();
+
+        // 更新目标显示
+        targetDisplay.textContent = analyzer.targetCount;
+
+        // 绑定事件
+        detector.addEventListener('ready', () => {
+          log('模型加载完成', 'success');
+        });
+
+        detector.addEventListener('pose', (e) => {
+          const result = e.detail;
+          
+          // 更新 FPS
+          fpsDisplay.textContent = detector.fps;
+          
+          // 渲染骨骼
+          renderer.drawBackground(camera);
+          renderer.render(result);
+          
+          // 分析动作
+          const state = analyzer.analyze(result);
+          
+          // 更新 UI
+          countDisplay.textContent = state.count;
+          if (state.feedback) {
+            showFeedback(state.feedback, state.phase === 'completed' ? 'success' : 'info');
+          }
+        });
+
+        analyzer.addEventListener('count', (e) => {
+          log(`完成第 ${e.detail} 个`, 'success');
+        });
+
+        analyzer.addEventListener('complete', () => {
+          log('全部完成！', 'success');
+          showFeedback('🎉 完成！', 'success');
+        });
+
+        analyzer.addEventListener('feedback', (e) => {
+          const { message, level } = e.detail;
+          log(message, level);
+          showFeedback(message, level);
+        });
+
+        // 初始化并启动
+        log('正在加载模型...');
+        await detector.initialize();
+        log('正在启动摄像头...');
+        await detector.start();
+        
+        startBtn.style.display = 'none';
+        stopBtn.style.display = 'block';
+        log('检测已启动', 'success');
+        showFeedback('检测中...', 'info');
+
+      } catch (error) {
+        log(`错误: ${error.message}`, 'error');
+        showFeedback(`启动失败: ${error.message}`, 'error');
+      }
+    }
+
+    function stop() {
+      if (detector) {
+        detector.stop();
+        detector.destroy();
+        detector = null;
+      }
+      if (renderer) {
+        renderer.clear();
+      }
+      
+      startBtn.style.display = 'block';
+      stopBtn.style.display = 'none';
+      log('已停止', 'info');
+      showFeedback('已停止');
+    }
+
+    startBtn.addEventListener('click', start);
+    stopBtn.addEventListener('click', stop);
+
+    // 动作类型改变时重新创建分析器
+    actionType.addEventListener('change', () => {
+      if (analyzer) {
+        analyzer = createAnalyzer();
+        targetDisplay.textContent = analyzer.targetCount;
+        countDisplay.textContent = '0';
+        log(`切换到 ${actionType.value} 检测`, 'info');
+      }
+    });
+
+    targetCount.addEventListener('change', () => {
+      if (analyzer) {
+        analyzer.targetCount = parseInt(targetCount.value) || 10;
+        targetDisplay.textContent = analyzer.targetCount;
+      }
+    });
+  </script>
+</body>
+</html>
