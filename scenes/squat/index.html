@@ -454,62 +454,136 @@
     }
 
     // ============================================================
-    // Body silhouette drawing
+    // Body silhouette drawing - draws body parts separately
     // ============================================================
     function drawBodySilhouette(lm, w, h, mx, my) {
-      // Body outline indices (order matters for path)
-      const bodyPath = [
-        // Left side (from head to foot)
-        POSE_LANDMARKS.NOSE,
-        POSE_LANDMARKS.LEFT_SHOULDER,
-        POSE_LANDMARKS.LEFT_ELBOW,
-        POSE_LANDMARKS.LEFT_WRIST,
-        // Back up to shoulder
-        POSE_LANDMARKS.LEFT_SHOULDER,
-        POSE_LANDMARKS.LEFT_HIP,
-        POSE_LANDMARKS.LEFT_KNEE,
-        POSE_LANDMARKS.LEFT_ANKLE,
-        // Across to right ankle
-        POSE_LANDMARKS.RIGHT_ANKLE,
-        // Right side (from foot to head)
-        POSE_LANDMARKS.RIGHT_KNEE,
-        POSE_LANDMARKS.RIGHT_HIP,
-        POSE_LANDMARKS.RIGHT_SHOULDER,
-        POSE_LANDMARKS.RIGHT_ELBOW,
-        POSE_LANDMARKS.RIGHT_WRIST,
-        // Back to shoulder
-        POSE_LANDMARKS.RIGHT_SHOULDER,
-        // Close path back to nose
-        POSE_LANDMARKS.NOSE
-      ];
+      const vis = 0.5; // visibility threshold
 
-      // Collect valid points
-      const points = [];
-      for (const idx of bodyPath) {
+      // Helper to get point
+      const get = (idx) => {
         const p = lm[idx];
-        if (p && p.visibility >= 0.5) {
-          points.push({ x: mx(p.x), y: my(p.y) });
+        return p && p.visibility >= vis ? { x: mx(p.x), y: my(p.y) } : null;
+      };
+
+      // Draw torso (trapezoid shape)
+      const ls = get(POSE_LANDMARKS.LEFT_SHOULDER);
+      const rs = get(POSE_LANDMARKS.RIGHT_SHOULDER);
+      const lh = get(POSE_LANDMARKS.LEFT_HIP);
+      const rh = get(POSE_LANDMARKS.RIGHT_HIP);
+
+      if (ls && rs && lh && rh) {
+        // Widen shoulders slightly for better shape
+        const shoulderW = Math.abs(rs.x - ls.x);
+        const shoulderExpand = shoulderW * 0.15;
+        const hipExpand = shoulderW * 0.08;
+
+        ctx.beginPath();
+        ctx.moveTo(ls.x - shoulderExpand, ls.y);
+        ctx.lineTo(rs.x + shoulderExpand, rs.y);
+        ctx.lineTo(rh.x + hipExpand, rh.y);
+        ctx.lineTo(lh.x - hipExpand, lh.y);
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(0, 255, 136, 0.2)';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(0, 255, 136, 0.4)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+
+      // Draw head (circle approximation)
+      const nose = get(POSE_LANDMARKS.NOSE);
+      const le = get(POSE_LANDMARKS.LEFT_EYE);
+      const re = get(POSE_LANDMARKS.RIGHT_EYE);
+      const lea = get(POSE_LANDMARKS.LEFT_EAR);
+      const rea = get(POSE_LANDMARKS.RIGHT_EAR);
+
+      if (nose && (le || re)) {
+        // Estimate head center and radius
+        const eyeMidX = le && re ? (le.x + re.x) / 2 : (le || re).x;
+        const eyeMidY = le && re ? (le.y + re.y) / 2 : (le || re).y;
+        const headRadius = Math.abs(nose.y - eyeMidY) * 1.8;
+        
+        ctx.beginPath();
+        ctx.arc(eyeMidX, eyeMidY + headRadius * 0.3, headRadius, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(0, 255, 136, 0.2)';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(0, 255, 136, 0.4)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+
+      // Draw arms (tapered shapes)
+      function drawArm(shoulderIdx, elbowIdx, wristIdx, isLeft) {
+        const shoulder = get(shoulderIdx);
+        const elbow = get(elbowIdx);
+        const wrist = get(wristIdx);
+        if (!shoulder || !elbow) return;
+
+        const armWidth = Math.abs(rs.x - ls.x) * 0.12;
+        const wristWidth = armWidth * 0.6;
+
+        // Calculate perpendicular direction for arm width
+        const dir = isLeft ? -1 : 1;
+
+        ctx.beginPath();
+        ctx.moveTo(shoulder.x, shoulder.y - armWidth/2);
+        ctx.lineTo(shoulder.x, shoulder.y + armWidth/2);
+        ctx.lineTo(elbow.x + dir * armWidth/2, elbow.y + armWidth/2);
+        ctx.lineTo(elbow.x + dir * armWidth/2, elbow.y - armWidth/2);
+        
+        if (wrist) {
+          ctx.lineTo(wrist.x + dir * wristWidth/2, wrist.y + wristWidth/2);
+          ctx.lineTo(wrist.x + dir * wristWidth/2, wrist.y - wristWidth/2);
+          ctx.lineTo(elbow.x - dir * armWidth/2, elbow.y - armWidth/2);
+        } else {
+          ctx.lineTo(elbow.x - dir * armWidth/2, elbow.y - armWidth/2);
         }
+        
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(0, 255, 136, 0.18)';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(0, 255, 136, 0.35)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
       }
 
-      if (points.length < 6) return; // Need enough points
+      drawArm(POSE_LANDMARKS.LEFT_SHOULDER, POSE_LANDMARKS.LEFT_ELBOW, POSE_LANDMARKS.LEFT_WRIST, true);
+      drawArm(POSE_LANDMARKS.RIGHT_SHOULDER, POSE_LANDMARKS.RIGHT_ELBOW, POSE_LANDMARKS.RIGHT_WRIST, false);
 
-      // Draw filled body silhouette
-      ctx.beginPath();
-      ctx.moveTo(points[0].x, points[0].y);
-      for (let i = 1; i < points.length; i++) {
-        ctx.lineTo(points[i].x, points[i].y);
+      // Draw legs (tapered shapes)
+      function drawLeg(hipIdx, kneeIdx, ankleIdx, isLeft) {
+        const hip = get(hipIdx);
+        const knee = get(kneeIdx);
+        const ankle = get(ankleIdx);
+        if (!hip || !knee) return;
+
+        const legWidth = Math.abs(rs.x - ls.x) * 0.18;
+        const ankleWidth = legWidth * 0.5;
+        const dir = isLeft ? -1 : 1;
+
+        ctx.beginPath();
+        ctx.moveTo(hip.x - dir * legWidth/3, hip.y);
+        ctx.lineTo(hip.x + dir * legWidth/3, hip.y);
+        ctx.lineTo(knee.x + dir * legWidth/2, knee.y);
+        
+        if (ankle) {
+          ctx.lineTo(ankle.x + dir * ankleWidth, ankle.y);
+          ctx.lineTo(ankle.x - dir * ankleWidth, ankle.y);
+          ctx.lineTo(knee.x - dir * legWidth/2, knee.y);
+        } else {
+          ctx.lineTo(knee.x - dir * legWidth/2, knee.y);
+        }
+        
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(0, 255, 136, 0.18)';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(0, 255, 136, 0.35)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
       }
-      ctx.closePath();
 
-      // Fill with gradient-like effect
-      ctx.fillStyle = 'rgba(0, 255, 136, 0.15)';
-      ctx.fill();
-
-      // Draw outline
-      ctx.strokeStyle = 'rgba(0, 255, 136, 0.5)';
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
+      drawLeg(POSE_LANDMARKS.LEFT_HIP, POSE_LANDMARKS.LEFT_KNEE, POSE_LANDMARKS.LEFT_ANKLE, true);
+      drawLeg(POSE_LANDMARKS.RIGHT_HIP, POSE_LANDMARKS.RIGHT_KNEE, POSE_LANDMARKS.RIGHT_ANKLE, false);
     }
 
     // ============================================================
