@@ -79,6 +79,24 @@
     let handsCount = 0;
     let debugFrame = 0;
 
+    // ── Pose landmark smoothing (EMA) ────────────────────────────────
+    let smoothedPose = null;
+    const SMOOTH_ALPHA = 0.4; // 0=freeze, 1=no smoothing
+
+    function smoothPoseLandmarks(raw) {
+      if (!smoothedPose || smoothedPose.length !== raw.length) {
+        smoothedPose = raw.map(p => ({ x: p.x, y: p.y, z: p.z, visibility: p.visibility }));
+        return smoothedPose;
+      }
+      for (let i = 0; i < raw.length; i++) {
+        smoothedPose[i].x = SMOOTH_ALPHA * raw[i].x + (1 - SMOOTH_ALPHA) * smoothedPose[i].x;
+        smoothedPose[i].y = SMOOTH_ALPHA * raw[i].y + (1 - SMOOTH_ALPHA) * smoothedPose[i].y;
+        smoothedPose[i].z = SMOOTH_ALPHA * raw[i].z + (1 - SMOOTH_ALPHA) * smoothedPose[i].z;
+        smoothedPose[i].visibility = raw[i].visibility; // don't smooth visibility
+      }
+      return smoothedPose;
+    }
+
     // ── Squat detection state ─────────────────────────────────────────
     let squatCount = 0;
     let squatPhase = 'stand'; // 'stand' | 'down' | 'up'
@@ -153,7 +171,7 @@
         'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/vision_bundle.js'
       );
 
-      // Step 2: Create ONE shared FilesetResolver for all detectors
+      // Step 2: Create ONE shared FilesetResolver for Pose/Hand
       const vision = await FilesetResolver.forVisionTasks(
         'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
       );
@@ -199,16 +217,21 @@
       }
 
       try {
-        status.textContent = 'Loading Face model...';
-        faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
+        status.textContent = 'Loading Face model (separate WASM)...';
+        // KEY FIX: separate FilesetResolver avoids WASM state conflict with Pose/Hand
+        const visionForFace = await FilesetResolver.forVisionTasks(
+          'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
+        );
+        // Use IMAGE mode — VIDEO mode has a known WASM bug (returns undefined)
+        faceLandmarker = await FaceLandmarker.createFromOptions(visionForFace, {
           baseOptions: {
             modelAssetPath: '/models/face_landmarker.task',
             delegate: 'CPU'
           },
-          runningMode: 'VIDEO',
+          runningMode: 'IMAGE',
           numFaces: 1
         });
-        console.log('[Face] loaded OK');
+        console.log('[Face] loaded OK (IMAGE mode, separate WASM)');
       } catch(e) {
         console.warn('[Face] load failed, face contours disabled:', e.message);
         faceLandmarker = null;
@@ -254,10 +277,10 @@
       if (poseLandmarker) {
         const poses = poseLandmarker.detectForVideo(video, now);
         if (poses.landmarks.length > 0) {
-          const lm = poses.landmarks[0];
+          const rawLm = poses.landmarks[0];
+          const lm = smoothPoseLandmarks(rawLm); // smooth for drawing
           if (showPose) drawPose(lm);
-          // if (showFace) drawFaceFromPose(lm); // Pose-based face (ugly, commented out)
-          detectSquat(lm);
+          detectSquat(rawLm); // raw for squat detection (no lag)
         }
       }
 
@@ -275,20 +298,30 @@
         }
       }
 
-      // Face contours from FaceLandmarker
+      // Face contours from FaceLandmarker (IMAGE mode)
       if (faceLandmarker && showFace) {
         try {
-          const faces = faceLandmarker.detectForVideo(video, now);
+          // IMAGE mode: use detect() not detectForVideo()
+          const faces = faceLandmarker.detect(video);
           if (faces === undefined || faces === null) {
-            console.warn('[Face] detectForVideo returned', faces);
+            console.warn('[Face] detect() returned', faces);
+          } else if (faces.faceLandmarks && faces.faceLandmarks.length > 0) {
+            faceDetected = true;
+            drawFaceContours(faces.faceLandmarks[0]);
           } else if (faces.landmarks && faces.landmarks.length > 0) {
+            // Fallback: some versions use 'landmarks' instead of 'faceLandmarks'
             faceDetected = true;
             drawFaceContours(faces.landmarks[0]);
           } else {
-            console.warn('[Face] no landmarks, keys:', Object.keys(faces));
+            // Log structure for debugging
+            if (debugFrame % 120 === 0) {
+              console.log('[Face] result keys:', faces ? Object.keys(faces) : 'null');
+            }
           }
         } catch(e) {
-          console.error('[Face] detectForVideo error:', e.message);
+          if (debugFrame % 60 === 0) {
+            console.error('[Face] detect() error:', e.message);
+          }
         }
       }
 
@@ -305,6 +338,20 @@
     }
 
     // ── Drawing: Pose ─────────────────────────────────────────────────
+    // Rounded trapezoid helper
+    function roundedQuad(pts, r) {
+      const n = pts.length;
+      ctx.beginPath();
+      // start at midpoint of first edge
+      ctx.moveTo((pts[0][0]+pts[1][0])/2, (pts[0][1]+pts[1][1])/2);
+      for (let i = 1; i <= n; i++) {
+        const curr = pts[i % n];
+        const next = pts[(i+1) % n];
+        ctx.arcTo(curr[0], curr[1], next[0], next[1], r);
+      }
+      ctx.closePath();
+    }
+
     function drawPose(lm) {
       const V = 0.5;
 
@@ -319,18 +366,41 @@
 
       const sw = lm[11] && lm[12] ? Math.abs(mx(lm[12].x) - mx(lm[11].x)) : 60;
 
-      // Torso
+      // Torso split: chest + pelvis
       const ls = lm[11], rs = lm[12], lh = lm[23], rh = lm[24];
       if (ls && rs && lh && rh) {
-        ctx.beginPath();
-        ctx.moveTo(mx(ls.x) - sw*0.12, my(ls.y));
-        ctx.lineTo(mx(rs.x) + sw*0.12, my(rs.y));
-        ctx.lineTo(mx(rh.x) + sw*0.06, my(rh.y));
-        ctx.lineTo(mx(lh.x) - sw*0.06, my(lh.y));
-        ctx.closePath();
+        // Waist line = 58% from shoulders to hips (lower)
+        const t = 0.58;
+        const wLY = my(ls.y) + (my(lh.y) - my(ls.y)) * t;
+        const wLX = mx(ls.x) + (mx(lh.x) - mx(ls.x)) * t;
+        const wRY = my(rs.y) + (my(rh.y) - my(rs.y)) * t;
+        const wRX = mx(rs.x) + (mx(rh.x) - mx(rs.x)) * t;
+        const waistPinch = sw * 0.04;
+        const pelvisDrop = sw * 0.08; // pelvis bottom extends below hips
+
+        // Chest (ribcage) - wider at top, narrower at waist
+        roundedQuad([
+          [mx(ls.x) - sw*0.12, my(ls.y)],
+          [mx(rs.x) + sw*0.12, my(rs.y)],
+          [wRX + waistPinch, wRY],
+          [wLX - waistPinch, wLY]
+        ], sw * 0.12);
         ctx.fillStyle = 'rgba(0,255,136,0.15)';
         ctx.fill();
         ctx.strokeStyle = 'rgba(0,255,136,0.45)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Pelvis - narrower at waist, wider + lower at bottom
+        roundedQuad([
+          [wLX - waistPinch, wLY],
+          [wRX + waistPinch, wRY],
+          [mx(rh.x) + sw*0.10, my(rh.y) + pelvisDrop],
+          [mx(lh.x) - sw*0.10, my(lh.y) + pelvisDrop]
+        ], sw * 0.10);
+        ctx.fillStyle = 'rgba(0,255,136,0.12)';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(0,255,136,0.40)';
         ctx.lineWidth = 2;
         ctx.stroke();
       }
@@ -340,24 +410,27 @@
         const s = lm[si], e = lm[ei], w = lm[wi];
         if (!s || !e) return;
         const aw = sw*0.10, ww = aw*0.5;
-        ctx.beginPath();
-        ctx.moveTo(mx(s.x)-dir*aw, my(s.y));
-        ctx.lineTo(mx(s.x)+dir*aw, my(s.y));
-        ctx.lineTo(mx(e.x)+dir*aw*0.8, my(e.y));
-        ctx.lineTo(mx(e.x)-dir*aw*0.8, my(e.y));
-        ctx.closePath();
+        const armR = aw * 0.5;
+        // Upper arm
+        roundedQuad([
+          [mx(s.x)-dir*aw, my(s.y)],
+          [mx(s.x)+dir*aw, my(s.y)],
+          [mx(e.x)+dir*aw*0.8, my(e.y)],
+          [mx(e.x)-dir*aw*0.8, my(e.y)]
+        ], armR);
         ctx.fillStyle = 'rgba(0,255,136,0.10)';
         ctx.fill();
         ctx.strokeStyle = 'rgba(0,255,136,0.35)';
         ctx.lineWidth = 1.5;
         ctx.stroke();
+        // Forearm
         if (w) {
-          ctx.beginPath();
-          ctx.moveTo(mx(e.x)-dir*aw*0.8, my(e.y));
-          ctx.lineTo(mx(e.x)+dir*aw*0.8, my(e.y));
-          ctx.lineTo(mx(w.x)+dir*ww, my(w.y));
-          ctx.lineTo(mx(w.x)-dir*ww, my(w.y));
-          ctx.closePath();
+          roundedQuad([
+            [mx(e.x)-dir*aw*0.8, my(e.y)],
+            [mx(e.x)+dir*aw*0.8, my(e.y)],
+            [mx(w.x)+dir*ww, my(w.y)],
+            [mx(w.x)-dir*ww, my(w.y)]
+          ], armR);
           ctx.fillStyle = 'rgba(0,255,136,0.10)';
           ctx.fill();
           ctx.strokeStyle = 'rgba(0,255,136,0.35)';
@@ -373,24 +446,27 @@
         const hp = lm[hi], kp = lm[ki], ap = lm[ai];
         if (!hp || !kp) return;
         const lw = sw*0.12, aw = lw*0.5;
-        ctx.beginPath();
-        ctx.moveTo(mx(hp.x)-dir*lw, my(hp.y));
-        ctx.lineTo(mx(hp.x)+dir*lw, my(hp.y));
-        ctx.lineTo(mx(kp.x)+dir*lw*0.8, my(kp.y));
-        ctx.lineTo(mx(kp.x)-dir*lw*0.8, my(kp.y));
-        ctx.closePath();
+        const legR = lw * 0.4;
+        // Thigh
+        roundedQuad([
+          [mx(hp.x)-dir*lw, my(hp.y)],
+          [mx(hp.x)+dir*lw, my(hp.y)],
+          [mx(kp.x)+dir*lw*0.8, my(kp.y)],
+          [mx(kp.x)-dir*lw*0.8, my(kp.y)]
+        ], legR);
         ctx.fillStyle = 'rgba(0,255,136,0.10)';
         ctx.fill();
         ctx.strokeStyle = 'rgba(0,255,136,0.35)';
         ctx.lineWidth = 1.5;
         ctx.stroke();
+        // Shin
         if (ap) {
-          ctx.beginPath();
-          ctx.moveTo(mx(kp.x)-dir*lw*0.8, my(kp.y));
-          ctx.lineTo(mx(kp.x)+dir*lw*0.8, my(kp.y));
-          ctx.lineTo(mx(ap.x)+dir*aw, my(ap.y));
-          ctx.lineTo(mx(ap.x)-dir*aw, my(ap.y));
-          ctx.closePath();
+          roundedQuad([
+            [mx(kp.x)-dir*lw*0.8, my(kp.y)],
+            [mx(kp.x)+dir*lw*0.8, my(kp.y)],
+            [mx(ap.x)+dir*aw, my(ap.y)],
+            [mx(ap.x)-dir*aw, my(ap.y)]
+          ], legR);
           ctx.fillStyle = 'rgba(0,255,136,0.10)';
           ctx.fill();
           ctx.stroke();
