@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>老板来了</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: 'Microsoft YaHei', 'SimSun', sans-serif;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        .bg-screenshot {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: #000 no-repeat center center;
+            background-size: 100vw 100vh;
+            z-index: 0;
+        }
+
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            cursor: pointer;
+            z-index: 10000;
+            opacity: 0;
+            animation: fadeIn 0.3s ease forwards;
+        }
+
+        @keyframes fadeIn {
+            to { opacity: 1; }
+        }
+
+        /* 复古警告框 - 电子包浆风格 */
+        .retro-alert {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            width: 80vw;
+            max-width: 600px;
+            background: linear-gradient(180deg, #f0f0f0 0%, #d4d4d4 100%);
+            border: 4px solid #808080;
+            border-top-color: #ffffff;
+            border-left-color: #ffffff;
+            border-right-color: #404040;
+            border-bottom-color: #404040;
+            box-shadow: 
+                8px 8px 0 rgba(0,0,0,0.3),
+                inset 0 0 20px rgba(0,0,0,0.1);
+            z-index: 10001;
+            animation: alertPop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) 0.3s forwards;
+            image-rendering: pixelated;
+        }
+
+        @keyframes alertPop {
+            0% { transform: translate(-50%, -50%) scale(0) rotate(-5deg); }
+            70% { transform: translate(-50%, -50%) scale(1.05) rotate(2deg); }
+            100% { transform: translate(-50%, -50%) scale(1) rotate(0deg); }
+        }
+
+        /* 标题栏 */
+        .alert-titlebar {
+            background: linear-gradient(90deg, #000080 0%, #1084d0 100%);
+            color: white;
+            padding: 8px 12px;
+            font-size: 16px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .alert-titlebar::before {
+            content: '⚠';
+            margin-right: 8px;
+            font-size: 18px;
+        }
+
+        .close-btn {
+            width: 20px;
+            height: 18px;
+            background: #c0c0c0;
+            border: 2px solid #808080;
+            border-top-color: #ffffff;
+            border-left-color: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        /* 内容区 */
+        .alert-content {
+            padding: 30px 20px;
+            text-align: center;
+        }
+
+        /* 表情包风格的大字 */
+        .meme-text {
+            font-size: clamp(36px, 8vw, 72px);
+            font-weight: 900;
+            color: #ff0000;
+            text-shadow: 
+                3px 3px 0 #ffff00,
+                -2px -2px 0 #00ffff,
+                0 0 20px rgba(255,0,0,0.5);
+            letter-spacing: 4px;
+            line-height: 1.2;
+            margin-bottom: 20px;
+            animation: textShake 0.1s ease-in-out infinite;
+            font-family: 'SimHei', 'Microsoft YaHei', sans-serif;
+        }
+
+        @keyframes textShake {
+            0%, 100% { transform: translate(0, 0); }
+            25% { transform: translate(-1px, 1px); }
+            50% { transform: translate(1px, -1px); }
+            75% { transform: translate(-1px, -1px); }
+        }
+
+        /* 副标题 */
+        .sub-text {
+            font-size: clamp(18px, 4vw, 28px);
+            color: #333;
+            font-weight: bold;
+            margin-top: 15px;
+            text-shadow: 1px 1px 0 #fff;
+        }
+
+        /* 表情包风格的提示 */
+        .meme-hint {
+            font-size: 14px;
+            color: #666;
+            margin-top: 20px;
+            padding: 10px;
+            background: #ffffcc;
+            border: 2px dashed #999;
+            display: inline-block;
+        }
+
+        /* 闪烁的警告边框 */
+        .warning-border {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            border: 20px solid transparent;
+            z-index: 9999;
+            pointer-events: none;
+            animation: borderFlash 0.5s ease-in-out infinite alternate;
+        }
+
+        @keyframes borderFlash {
+            0% { 
+                border-color: transparent;
+                box-shadow: inset 0 0 0 rgba(255,0,0,0);
+            }
+            100% { 
+                border-color: rgba(255,0,0,0.8);
+                box-shadow: inset 0 0 100px rgba(255,0,0,0.3);
+            }
+        }
+
+        /* 像素化装饰 */
+        .pixel-decoration {
+            position: fixed;
+            font-size: 40px;
+            z-index: 10002;
+            opacity: 0;
+            animation: decorationPop 0.3s ease forwards;
+        }
+
+        @keyframes decorationPop {
+            0% { transform: scale(0); opacity: 0; }
+            50% { transform: scale(1.3); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        /* 按钮样式 */
+        .retro-button {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 10px 30px;
+            background: #c0c0c0;
+            border: 3px solid #808080;
+            border-top-color: #ffffff;
+            border-left-color: #ffffff;
+            border-right-color: #404040;
+            border-bottom-color: #404040;
+            font-size: 16px;
+            font-weight: bold;
+            color: #000;
+            cursor: pointer;
+            box-shadow: 2px 2px 0 rgba(0,0,0,0.2);
+        }
+
+        .retro-button:active {
+            border-top-color: #404040;
+            border-left-color: #404040;
+            border-right-color: #ffffff;
+            border-bottom-color: #ffffff;
+            box-shadow: inset 2px 2px 4px rgba(0,0,0,0.2);
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-screenshot"></div>
+
+    <!-- 闪烁警告边框 -->
+    <div class="warning-border"></div>
+
+    <!-- 像素装饰 -->
+    <div class="pixel-decoration" style="top: 10%; left: 5%; animation-delay: 0.5s;">💀</div>
+    <div class="pixel-decoration" style="top: 15%; right: 8%; animation-delay: 0.7s;">⚡</div>
+    <div class="pixel-decoration" style="bottom: 20%; left: 8%; animation-delay: 0.9s;">🔥</div>
+    <div class="pixel-decoration" style="bottom: 15%; right: 5%; animation-delay: 1.1s;">💢</div>
+
+    <div class="overlay" id="overlay">
+        <div class="retro-alert">
+            <div class="alert-titlebar">
+                <span>系统警告 - System Warning</span>
+                <div class="close-btn">×</div>
+            </div>
+            <div class="alert-content">
+                <div class="meme-text" id="mainText">老板来了！</div>
+                <div class="sub-text" id="subText">快起来活动一下，假装在工作！</div>
+                <div class="meme-hint">
+                    💡 提示：久坐被老板发现会扣工资<br>
+                    建议立即执行：伸懒腰 + 喝水 + 走动
+                </div>
+                <div class="retro-button">我知道了 (点击关闭)</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const mainTexts = [
+            "老板来了！",
+            "危险！危险！",
+            "社畜警报！",
+            "摸鱼被发现了！",
+            "紧急避险！",
+            "工资-1000！"
+        ];
+
+        const subTexts = [
+            "快起来活动一下，假装在工作！",
+            "你的屁股已经和椅子焊死了！",
+            "再不起来老板要发火了！",
+            "起来伸个懒腰，喝口水！",
+            "检测到久坐，建议立即摸鱼！",
+            "休息是为了更好地打工！"
+        ];
+
+        document.getElementById('mainText').textContent = 
+            mainTexts[Math.floor(Math.random() * mainTexts.length)];
+        document.getElementById('subText').textContent = 
+            subTexts[Math.floor(Math.random() * subTexts.length)];
+
+        // 播放复古警告音
+        function playAlertSound() {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const now = audioCtx.currentTime;
+
+                // 警报声 - 高低交替
+                for (let i = 0; i < 5; i++) {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(800, now + i * 0.2);
+                    osc.frequency.setValueAtTime(600, now + i * 0.2 + 0.1);
+                    
+                    gain.gain.setValueAtTime(0.1, now + i * 0.2);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.2 + 0.15);
+                    
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now + i * 0.2);
+                    osc.stop(now + i * 0.2 + 0.15);
+                }
+            } catch (e) {}
+        }
+
+        playAlertSound();
+
+        // 点击关闭
+        document.getElementById('overlay').addEventListener('click', () => {
+            const overlay = document.getElementById('overlay');
+            overlay.style.transition = 'opacity 0.2s';
+            overlay.style.opacity = '0';
+            setTimeout(() => window.close(), 200);
+        });
+    </script>
+</body>
+</html>

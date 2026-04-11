@@ -1,9 +1,19 @@
 {
   "id": "squat",
   "name": "深蹲挑战",
-  "author": "hongyu",
-  "description": "做一个深蹲才能关闭提醒",
-  "duration": 30,
+  "author": "blueraincoat",
+  "description": "做一个深蹲才能关闭提醒！AI 实时计数，配合骨骼可视化。",
+  "type": "motion",
+  "duration": 60,
+  "version": "1.0.0",
   "tags": ["运动", "健康"],
-  "version": "1.0.0"
+  "requirements": {
+    "camera": true,
+    "fullscreen": true
+  },
+  "config": {
+    "targetCount": 5,
+    "squatAngleThreshold": 110,
+    "standAngleThreshold": 160
+  }
 }

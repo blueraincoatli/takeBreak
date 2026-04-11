@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Motion Engine 测试</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: system-ui, sans-serif;
+      background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%);
+      color: #fff;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+    }
+    h1 { margin-bottom: 5px; }
+    .subtitle { color: #666; margin-bottom: 20px; font-size: 14px; }
+    .main { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; width: 100%; max-width: 1000px; }
+    
+    .video-wrap {
+      position: relative;
+      width: 480px;
+      max-width: 100%;
+      background: #000;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    }
+    #video { width: 100%; display: block; transform: scaleX(-1); }
+    #canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+    .overlay {
+      position: absolute;
+      top: 10px; left: 10px;
+      background: rgba(0,0,0,0.7);
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+    }
+    .mode-badge {
+      position: absolute;
+      top: 10px; right: 10px;
+      background: rgba(0,200,100,0.8);
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    
+    .panel {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px;
+      padding: 20px;
+      min-width: 280px;
+    }
+    .panel h2 { font-size: 16px; margin-bottom: 15px; color: #00ccff; }
+    
+    .control-group { margin-bottom: 12px; }
+    .control-group label { display: block; margin-bottom: 4px; color: #888; font-size: 12px; }
+    .control-group select, .control-group input {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #333;
+      border-radius: 6px;
+      background: #0a0a0a;
+      color: #fff;
+      font-size: 14px;
+    }
+    
+    button {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-start { background: linear-gradient(135deg, #00cc66, #00aa55); color: #000; }
+    .btn-start:hover { transform: translateY(-2px); box-shadow: 0 5px 20px rgba(0,200,100,0.3); }
+    .btn-stop { background: #ff4444; color: #fff; margin-top: 10px; }
+    .btn-stop:hover { background: #ff5555; }
+    
+    .stats { display: flex; gap: 15px; margin-top: 20px; }
+    .stat {
+      flex: 1;
+      background: rgba(0,0,0,0.3);
+      padding: 15px;
+      border-radius: 8px;
+      text-align: center;
+    }
+    .stat-value { font-size: 36px; font-weight: bold; color: #00ff88; }
+    .stat-label { font-size: 11px; color: #888; margin-top: 4px; }
+    
+    .feedback {
+      margin-top: 20px;
+      padding: 15px;
+      background: rgba(0,0,0,0.3);
+      border-radius: 8px;
+      text-align: center;
+      font-size: 16px;
+      min-height: 50px;
+    }
+    .feedback.success { background: rgba(0,255,136,0.15); color: #00ff88; }
+    .feedback.warning { background: rgba(255,200,0,0.15); color: #ffc800; }
+    
+    .log {
+      margin-top: 15px;
+      max-height: 120px;
+      overflow-y: auto;
+      background: rgba(0,0,0,0.3);
+      padding: 8px;
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 11px;
+    }
+    .log-entry { color: #666; }
+    .log-entry.error { color: #ff6666; }
+    .log-entry.success { color: #66ff66; }
+  </style>
+</head>
+<body>
+  <h1>🏃 Motion Engine</h1>
+  <p class="subtitle">MediaPipe Pose + 动作检测</p>
+
+  <div class="main">
+    <div class="video-wrap">
+      <video id="video" autoplay playsinline></video>
+      <canvas id="canvas"></canvas>
+      <div class="overlay">FPS: <span id="fps">--</span></div>
+      <div class="mode-badge" id="modeBadge" style="display:none">全身模式</div>
+    </div>
+
+    <div class="panel">
+      <h2>⚙️ 设置</h2>
+      
+      <div class="control-group">
+        <label>动作类型</label>
+        <select id="actionType">
+          <option value="squat">深蹲 / 起立</option>
+          <option value="drink">喝水</option>
+        </select>
+      </div>
+
+      <div class="control-group">
+        <label>目标次数</label>
+        <input type="number" id="targetCount" value="10" min="1" max="100">
+      </div>
+
+      <button class="btn-start" id="startBtn">启动检测</button>
+      <button class="btn-stop" id="stopBtn" style="display:none">停止</button>
+
+      <div class="stats">
+        <div class="stat">
+          <div class="stat-value" id="count">0</div>
+          <div class="stat-label">完成</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" id="target">10</div>
+          <div class="stat-label">目标</div>
+        </div>
+      </div>
+
+      <div class="feedback" id="feedback">点击启动开始检测</div>
+      
+      <div class="log" id="log"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    // 先用 CDN 版本测试（因为本地模块需要 ESM 服务器）
+    import { FilesetResolver, PoseLandmarker } from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/+esm';
+
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const actionType = document.getElementById('actionType');
+    const targetCount = document.getElementById('targetCount');
+    const countEl = document.getElementById('count');
+    const targetEl = document.getElementById('target');
+    const feedbackEl = document.getElementById('feedback');
+    const fpsEl = document.getElementById('fps');
+    const modeBadge = document.getElementById('modeBadge');
+    const logEl = document.getElementById('log');
+
+    let poseLandmarker = null;
+    let stream = null;
+    let running = false;
+    let lastTime = performance.now();
+    let frameCount = 0;
+
+    // 深蹲状态
+    let squatState = 'STANDING';
+    let squatCount = 0;
+    let isFullBody = false;
+    let standingRef = null;
+    let height = null;
+    let faceHeight = null;
+    let depthHistory = [];
+
+    function log(msg, type = '') {
+      const el = document.createElement('div');
+      el.className = 'log-entry ' + type;
+      el.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      logEl.insertBefore(el, logEl.firstChild);
+    }
+
+    function show(msg, type = '') {
+      feedbackEl.textContent = msg;
+      feedbackEl.className = 'feedback ' + type;
+    }
+
+    // 骨骼连接
+    const CONNECTIONS = [
+      [11,12],[11,23],[12,24],[23,24],
+      [11,13],[13,15],[12,14],[14,16],
+      [23,25],[25,27],[24,26],[26,28],
+    ];
+
+    function drawPose(landmarks) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      ctx.strokeStyle = '#00ff88';
+      ctx.lineWidth = 3;
+      for (const [i, j] of CONNECTIONS) {
+        const a = landmarks[i], b = landmarks[j];
+        if (a?.visibility > 0.5 && b?.visibility > 0.5) {
+          ctx.beginPath();
+          ctx.moveTo((1 - a.x) * canvas.width, a.y * canvas.height);
+          ctx.lineTo((1 - b.x) * canvas.width, b.y * canvas.height);
+          ctx.stroke();
+        }
+      }
+      
+      ctx.fillStyle = '#00ccff';
+      for (const lm of landmarks) {
+        if (lm?.visibility > 0.5) {
+          ctx.beginPath();
+          ctx.arc((1 - lm.x) * canvas.width, lm.y * canvas.height, 5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+
+    function analyze(landmarks) {
+      const hip = landmarks[23], hipR = landmarks[24];
+      const ankle = landmarks[27], ankleR = landmarks[28];
+      const shoulder = landmarks[11], shoulderR = landmarks[12];
+      const nose = landmarks[0];
+      
+      // 检测全身/半身
+      isFullBody = hip?.visibility > 0.5 && ankle?.visibility > 0.5;
+      
+      // 更新模式标签
+      modeBadge.style.display = 'block';
+      modeBadge.textContent = isFullBody ? '全身模式' : '半身模式';
+      
+      if (isFullBody) {
+        analyzeFullSquat(landmarks);
+      } else {
+        analyzeSeated(landmarks);
+      }
+    }
+
+    function analyzeFullSquat(landmarks) {
+      const hip = landmarks[23], hipR = landmarks[24];
+      const ankle = landmarks[27], ankleR = landmarks[28];
+      const nose = landmarks[0];
+      
+      const hipY = (hip.y + hipR.y) / 2;
+      const ankleY = (ankle.y + ankleR.y) / 2;
+      
+      if (nose?.visibility > 0.5) {
+        height = Math.abs(nose.y - ankleY);
+      }
+      
+      if (!standingRef && squatState === 'STANDING') {
+        standingRef = hipY;
+      }
+      
+      let depth = 0;
+      if (standingRef && height) {
+        depth = Math.max(0, hipY - standingRef) / height;
+      }
+      
+      depthHistory.push(depth);
+      if (depthHistory.length > 3) depthHistory.shift();
+      const smooth = depthHistory.reduce((a,b) => a+b, 0) / depthHistory.length;
+      
+      // 状态机
+      switch (squatState) {
+        case 'STANDING':
+          if (smooth > 0.2) {
+            squatState = 'DESCENDING';
+            show('下蹲中...');
+          }
+          break;
+        case 'DESCENDING':
+          if (smooth > 0.3) {
+            squatState = 'BOTTOM';
+            show('保持！');
+          } else if (smooth < 0.15) {
+            squatState = 'STANDING';
+            show('再深一点');
+          }
+          break;
+        case 'BOTTOM':
+          squatState = 'ASCENDING';
+          break;
+        case 'ASCENDING':
+          if (smooth < 0.15) {
+            squatCount++;
+            countEl.textContent = squatCount;
+            show(`第 ${squatCount} 个！`, 'success');
+            squatState = 'STANDING';
+          }
+          break;
+      }
+    }
+
+    function analyzeSeated(landmarks) {
+      const shoulder = landmarks[11], shoulderR = landmarks[12];
+      const nose = landmarks[0];
+      
+      const shoulderY = (shoulder.y + shoulderR.y) / 2;
+      
+      // 估算脸高
+      const mouth = landmarks[9] || landmarks[10];
+      if (nose?.visibility > 0.5 && mouth) {
+        faceHeight = Math.abs(nose.y - mouth.y) * 3;
+      }
+      
+      if (!standingRef && squatState === 'STANDING') {
+        standingRef = shoulderY;
+      }
+      
+      let displacement = 0;
+      if (standingRef && faceHeight) {
+        displacement = (shoulderY - standingRef) / faceHeight;
+      }
+      
+      depthHistory.push(displacement);
+      if (depthHistory.length > 5) depthHistory.shift();
+      const smooth = depthHistory.reduce((a,b) => a+b, 0) / depthHistory.length;
+      
+      // 状态机（上移=站起）
+      switch (squatState) {
+        case 'STANDING':
+          if (smooth < -0.15) {
+            squatState = 'ASCENDING';
+            show('站起来了！', 'success');
+          }
+          break;
+        case 'ASCENDING':
+          if (Math.abs(smooth) < 0.05) {
+            squatCount++;
+            countEl.textContent = squatCount;
+            show(`第 ${squatCount} 个！`, 'success');
+            squatState = 'STANDING';
+          }
+          break;
+      }
+    }
+
+    async function detect() {
+      if (!running || !poseLandmarker) return;
+      
+      const now = performance.now();
+      frameCount++;
+      if (now - lastTime >= 1000) {
+        fpsEl.textContent = frameCount;
+        frameCount = 0;
+        lastTime = now;
+      }
+      
+      const results = poseLandmarker.detectForVideo(video, now);
+      
+      if (results.landmarks?.length > 0) {
+        drawPose(results.landmarks[0]);
+        analyze(results.landmarks[0]);
+      }
+      
+      requestAnimationFrame(detect);
+    }
+
+    async function start() {
+      try {
+        log('请求摄像头...');
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: 640, height: 480, facingMode: 'user' }
+        });
+        video.srcObject = stream;
+        
+        log('加载模型...');
+        
+        const vision = await FilesetResolver.forVisionTasks(
+          'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
+        );
+        
+        poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',
+            delegate: 'GPU'
+          },
+          runningMode: 'VIDEO',
+          numPoses: 1
+        });
+        
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 480;
+        
+        // 重置状态
+        squatState = 'STANDING';
+        squatCount = 0;
+        standingRef = null;
+        depthHistory = [];
+        countEl.textContent = '0';
+        
+        running = true;
+        detect();
+        
+        startBtn.style.display = 'none';
+        stopBtn.style.display = 'block';
+        show('检测中...');
+        log('已启动', 'success');
+        
+      } catch (err) {
+        log('错误: ' + err.message, 'error');
+        show('启动失败: ' + err.message, 'error');
+      }
+    }
+
+    function stop() {
+      running = false;
+      if (stream) {
+        stream.getTracks().forEach(t => t.stop());
+        stream = null;
+      }
+      video.srcObject = null;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      startBtn.style.display = 'block';
+      stopBtn.style.display = 'none';
+      modeBadge.style.display = 'none';
+      show('已停止');
+      log('已停止');
+    }
+
+    startBtn.onclick = start;
+    stopBtn.onclick = stop;
+    
+    targetCount.onchange = () => {
+      targetEl.textContent = targetCount.value;
+    };
+  </script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "id": "breathing",
+  "name": "呼吸引导",
+  "author": "hongyu",
+  "description": "极简呼吸引导，帮助用户进行呼吸放松练习",
+  "duration": 15,
+  "tags": ["健康", "放松", "冥想"],
+  "version": "1.0.0"
+}

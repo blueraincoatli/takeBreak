@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>日落提醒</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        .bg-screenshot {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: #000 no-repeat center center;
+            background-size: 100vw 100vh;
+            z-index: 0;
+        }
+
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            cursor: pointer;
+            z-index: 10000;
+            opacity: 0;
+            animation: fadeIn 1s ease forwards;
+        }
+
+        @keyframes fadeIn {
+            to { opacity: 1; }
+        }
+
+        /* 天空背景 - 使用多层渐变实现日落效果 */
+        .sky {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1;
+            background: linear-gradient(180deg, 
+                #87CEEB 0%, 
+                #FFD700 30%, 
+                #FF8C00 60%, 
+                #FF6347 80%, 
+                #8B008B 100%);
+            opacity: 0;
+            animation: skyFadeIn 3s ease 0.5s forwards;
+        }
+
+        @keyframes skyFadeIn {
+            to { opacity: 0.85; }
+        }
+
+        /* 太阳 */
+        .sun {
+            position: fixed;
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, 
+                #FFF8DC 0%, 
+                #FFD700 30%, 
+                #FF8C00 70%, 
+                #FF6347 100%);
+            box-shadow: 
+                0 0 60px 20px rgba(255, 215, 0, 0.5),
+                0 0 100px 40px rgba(255, 140, 0, 0.3),
+                0 0 140px 60px rgba(255, 99, 71, 0.2);
+            z-index: 2;
+            top: -150px;
+            left: 50%;
+            transform: translateX(-50%);
+            animation: sunSet 8s ease-out 1s forwards;
+        }
+
+        @keyframes sunSet {
+            0% {
+                top: -150px;
+                box-shadow: 
+                    0 0 60px 20px rgba(255, 215, 0, 0.5),
+                    0 0 100px 40px rgba(255, 140, 0, 0.3);
+            }
+            50% {
+                top: 30%;
+                box-shadow: 
+                    0 0 80px 30px rgba(255, 140, 0, 0.6),
+                    0 0 120px 50px rgba(255, 99, 71, 0.4);
+            }
+            100% {
+                top: 75%;
+                box-shadow: 
+                    0 0 100px 40px rgba(255, 99, 71, 0.7),
+                    0 0 150px 70px rgba(139, 0, 139, 0.3);
+            }
+        }
+
+        /* 地平线/山脉剪影 */
+        .horizon {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100vw;
+            height: 35vh;
+            z-index: 3;
+            opacity: 0;
+            animation: horizonFadeIn 2s ease 2s forwards;
+        }
+
+        .mountain {
+            position: absolute;
+            bottom: 0;
+            background: linear-gradient(180deg, #2D1B4E 0%, #1a0f2e 100%);
+        }
+
+        .mountain:nth-child(1) {
+            left: -10%;
+            width: 50%;
+            height: 60%;
+            clip-path: polygon(0% 100%, 30% 20%, 60% 100%);
+        }
+
+        .mountain:nth-child(2) {
+            left: 30%;
+            width: 60%;
+            height: 80%;
+            clip-path: polygon(0% 100%, 40% 0%, 80% 100%);
+        }
+
+        .mountain:nth-child(3) {
+            right: -10%;
+            width: 50%;
+            height: 55%;
+            clip-path: polygon(20% 100%, 50% 30%, 100% 100%);
+        }
+
+        @keyframes horizonFadeIn {
+            to { opacity: 1; }
+        }
+
+        /* 云朵 */
+        .cloud {
+            position: fixed;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 100px;
+            z-index: 2;
+            opacity: 0;
+            animation: cloudFadeIn 2s ease 1.5s forwards;
+        }
+
+        .cloud::before,
+        .cloud::after {
+            content: '';
+            position: absolute;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 100px;
+        }
+
+        .cloud:nth-child(1) {
+            width: 100px;
+            height: 40px;
+            top: 20%;
+            left: 10%;
+        }
+
+        .cloud:nth-child(1)::before {
+            width: 50px;
+            height: 50px;
+            top: -25px;
+            left: 10px;
+        }
+
+        .cloud:nth-child(1)::after {
+            width: 60px;
+            height: 40px;
+            top: -15px;
+            right: 10px;
+        }
+
+        .cloud:nth-child(2) {
+            width: 80px;
+            height: 35px;
+            top: 15%;
+            right: 20%;
+            animation-delay: 1.8s;
+        }
+
+        .cloud:nth-child(2)::before {
+            width: 40px;
+            height: 40px;
+            top: -20px;
+            left: 15px;
+        }
+
+        .cloud:nth-child(2)::after {
+            width: 50px;
+            height: 35px;
+            top: -10px;
+            right: 15px;
+        }
+
+        @keyframes cloudFadeIn {
+            to { opacity: 0.6; }
+        }
+
+        /* 提醒文字 */
+        .reminder-text {
+            position: fixed;
+            top: 15%;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: clamp(24px, 4vw, 48px);
+            font-weight: 300;
+            color: #fff;
+            text-shadow:
+                0 0 20px rgba(255, 200, 150, 0.8),
+                0 0 40px rgba(255, 150, 100, 0.5),
+                0 2px 10px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            padding: 20px 40px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 20px;
+            -webkit-backdrop-filter: blur(8px);
+            backdrop-filter: blur(8px);
+            opacity: 0;
+            z-index: 100;
+            white-space: pre-line;
+            letter-spacing: 3px;
+            animation: textFloat 1s ease-out 4s forwards;
+        }
+
+        @keyframes textFloat {
+            0% { 
+                opacity: 0; 
+                transform: translateX(-50%) translateY(-20px); 
+            }
+            100% { 
+                opacity: 1; 
+                transform: translateX(-50%) translateY(0); 
+            }
+        }
+
+        /* 关闭提示 */
+        .close-hint {
+            position: fixed;
+            bottom: 3%;
+            right: 3%;
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.5);
+            z-index: 101;
+            opacity: 0;
+            animation: hintAppear 0.5s ease 6s forwards;
+        }
+
+        @keyframes hintAppear {
+            to { opacity: 1; }
+        }
+
+        /* 星星 - 太阳落下后出现 */
+        .star {
+            position: fixed;
+            width: 3px;
+            height: 3px;
+            background: white;
+            border-radius: 50%;
+            z-index: 2;
+            opacity: 0;
+            animation: twinkle 2s ease-in-out infinite;
+        }
+
+        @keyframes twinkle {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-screenshot"></div>
+
+    <div class="overlay" id="overlay">
+        <!-- 天空 -->
+        <div class="sky"></div>
+
+        <!-- 云朵 -->
+        <div class="cloud"></div>
+        <div class="cloud"></div>
+
+        <!-- 太阳 -->
+        <div class="sun"></div>
+
+        <!-- 地平线/山脉 -->
+        <div class="horizon">
+            <div class="mountain"></div>
+            <div class="mountain"></div>
+            <div class="mountain"></div>
+        </div>
+
+        <!-- 星星容器 -->
+        <div id="stars"></div>
+
+        <!-- 提醒文字 -->
+        <div class="reminder-text" id="reminderText"></div>
+
+        <!-- 关闭提示 -->
+        <div class="close-hint">点击任意位置关闭</div>
+    </div>
+
+    <script>
+        const messages = [
+            "太阳都下山了\n你也该休息了",
+            "忙碌了一天\n该给自己一个拥抱",
+            "今天的努力\n值得一个温柔的傍晚",
+            "休息一下\n明天的太阳会更好",
+            "你看，连太阳都知道要休息",
+            "让心跟着太阳一起放松吧",
+            "工作不止眼前的屏幕\n还有诗和远方"
+        ];
+
+        document.getElementById('reminderText').textContent = 
+            messages[Math.floor(Math.random() * messages.length)];
+
+        // 生成星星
+        function createStars() {
+            const container = document.getElementById('stars');
+            for (let i = 0; i < 30; i++) {
+                const star = document.createElement('div');
+                star.className = 'star';
+                star.style.left = Math.random() * 100 + '%';
+                star.style.top = Math.random() * 50 + '%';
+                star.style.animationDelay = Math.random() * 2 + 's';
+                star.style.animation = `twinkle 2s ease-in-out ${Math.random() * 2}s infinite`;
+                // 太阳落下后才显示星星
+                star.style.opacity = '0';
+                setTimeout(() => {
+                    star.style.transition = 'opacity 2s';
+                    star.style.opacity = Math.random() * 0.7 + 0.3;
+                }, 6000 + Math.random() * 2000);
+                container.appendChild(star);
+            }
+        }
+
+        createStars();
+
+        // 点击关闭
+        document.getElementById('overlay').addEventListener('click', () => {
+            const overlay = document.getElementById('overlay');
+            overlay.style.transition = 'opacity 0.5s';
+            overlay.style.opacity = '0';
+            setTimeout(() => window.close(), 500);
+        });
+
+        // 播放柔和的提示音
+        function playGentleSound() {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                
+                // 创建柔和的 bell 声
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                const filter = audioCtx.createBiquadFilter();
+
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(523.25, audioCtx.currentTime); // C5
+                osc.frequency.exponentialRampToValueAtTime(261.63, audioCtx.currentTime + 2); // C4
+
+                filter.type = 'lowpass';
+                filter.frequency.value = 800;
+
+                gain.gain.setValueAtTime(0, audioCtx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.15, audioCtx.currentTime + 0.5);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 3);
+
+                osc.connect(filter);
+                filter.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                osc.start(audioCtx.currentTime);
+                osc.stop(audioCtx.currentTime + 3);
+            } catch (e) {}
+        }
+
+        setTimeout(playGentleSound, 1000);
+    </script>
+</body>
+</html>

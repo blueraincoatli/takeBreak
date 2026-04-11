@@ -1,0 +1,9 @@
+{
+  "id": "liquid-glass",
+  "name": "液态玻璃",
+  "author": "hongyu",
+  "description": "屏幕截图逐渐融化成流动的液态玻璃效果，像梦境般消散",
+  "duration": 10,
+  "tags": ["艺术", "梦幻", "视觉"],
+  "version": "1.0.0"
+}

@@ -1,12 +1,9 @@
 # 开发任务清单 (TASKS.md)
 
-## 已完成任务
+## ✅ 已完成
 
-### ✅ 深蹲场景 (squat)
+### 深蹲场景 (squat) — 2026-04-11
 
-**完成时间：** 2026-04-11
-
-**实现内容：**
 - [x] MediaPipe Pose 检测集成
 - [x] 本地模型文件 (`public/models/pose_landmarker_lite.task`)
 - [x] 深蹲状态机 (STANDING → DESCENDING → BOTTOM → ASCENDING → COUNTED)
@@ -16,14 +13,13 @@
 - [x] 完成动画与音效
 - [x] HTTP API 集成 (`/api/scene-complete`)
 
-**已知问题：**
-- FaceLandmarker `detectForVideo()` 返回 `undefined`（MediaPipe tasks-vision@0.10.14 WASM bug），暂用 pose 检测替代
+**已知问题：** FaceLandmarker `detectForVideo()` 返回 `undefined`（MediaPipe tasks-vision@0.10.14 WASM bug），暂用 pose 检测替代
 
 ---
 
 ## 待开发任务
 
-### 阶段 1: 基础设施 (已完成)
+### 阶段 1: 基础设施 ✅
 
 - [x] 公共模型目录 (`public/models/`)
 - [x] HTTP 静态文件服务 (`/models/*`)
@@ -33,6 +29,8 @@
 ### 阶段 2: 新动作场景
 
 #### 2.1 喝水检测 (drink-water)
+
+> 目录已建：`scenes/drink-water/`（待实现）
 
 - [ ] 创建 `scenes/drink-water/` 目录
 - [ ] 实现 DrinkAnalyzer（手嘴距离检测）
@@ -73,7 +71,8 @@
 | 问题 | 影响 | 优先级 |
 |------|------|--------|
 | FaceLandmarker WASM bug | 无法使用面部检测 | P2（等待上游修复） |
-| 测试文件清理 | 根目录有残留测试文件 | P3 |
+| `scenes-motion/` 废弃目录 | 旧代码残留 | P3（可忽略） |
+| `test-full-body.html` 遗留 | 根目录测试文件 | P3（待移到 `test/`） |
 | 开发模式硬编码场景 | 需恢复随机选择 | P1 |
 
 ---

@@ -1,0 +1,9 @@
+{
+  "id": "achievement",
+  "name": "成就解锁",
+  "author": "hongyu",
+  "description": "游戏成就解锁风格，反讽幽默地提醒用户休息",
+  "duration": 8,
+  "tags": ["游戏", "幽默", "反讽"],
+  "version": "1.0.0"
+}

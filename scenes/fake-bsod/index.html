@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>假蓝屏</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        .bg-screenshot {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: #000 no-repeat center center;
+            background-size: 100vw 100vh;
+            z-index: 0;
+        }
+
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            cursor: pointer;
+            z-index: 10000;
+            opacity: 0;
+            animation: fadeIn 0.1s ease forwards;
+        }
+
+        @keyframes fadeIn {
+            to { opacity: 1; }
+        }
+
+        /* 假蓝屏界面 */
+        .fake-bsod {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: #0078D7;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 0 10%;
+            color: white;
+            z-index: 10;
+            transition: all 0.5s ease;
+        }
+
+        .fake-bsod.glitch {
+            animation: glitch 0.3s ease;
+        }
+
+        @keyframes glitch {
+            0%, 100% { transform: translate(0); filter: none; }
+            20% { transform: translate(-5px, 5px); filter: hue-rotate(90deg); }
+            40% { transform: translate(5px, -5px); filter: hue-rotate(180deg); }
+            60% { transform: translate(-5px, -5px); filter: hue-rotate(270deg); }
+            80% { transform: translate(5px, 5px); filter: hue-rotate(360deg); }
+        }
+
+        .fake-bsod.cracking {
+            clip-path: polygon(
+                0% 0%, 100% 0%, 100% 100%, 0% 100%,
+                0% 90%, 10% 85%, 0% 80%,
+                5% 70%, 15% 75%, 10% 65%,
+                20% 60%, 30% 65%, 25% 55%,
+                35% 50%, 45% 55%, 40% 45%,
+                50% 40%, 60% 45%, 55% 35%,
+                65% 30%, 75% 35%, 70% 25%,
+                80% 20%, 90% 25%, 85% 15%,
+                95% 10%, 100% 15%, 100% 0%
+            );
+            opacity: 0.5;
+        }
+
+        /* 悲伤表情 */
+        .sad-face {
+            font-size: clamp(60px, 12vw, 100px);
+            margin-bottom: 30px;
+        }
+
+        /* 错误信息 */
+        .error-message {
+            font-size: clamp(18px, 3vw, 28px);
+            font-weight: 300;
+            line-height: 1.5;
+            margin-bottom: 30px;
+            max-width: 800px;
+        }
+
+        /* 进度 */
+        .progress-section {
+            margin: 20px 0;
+        }
+
+        .progress-text {
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+
+        .progress-bar {
+            width: 300px;
+            height: 4px;
+            background: rgba(255,255,255,0.3);
+            position: relative;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: white;
+            width: 0%;
+            animation: progressFill 3s linear forwards;
+        }
+
+        @keyframes progressFill {
+            to { width: 70%; }
+        }
+
+        /* 错误代码 */
+        .error-code {
+            margin-top: 30px;
+            font-size: 14px;
+            font-family: 'Consolas', monospace;
+        }
+
+        .error-code div {
+            margin: 5px 0;
+        }
+
+        /* 真相揭示界面 */
+        .reveal-truth {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            z-index: 20;
+            opacity: 0;
+            pointer-events: none;
+            transform: scale(0.8);
+        }
+
+        .reveal-truth.show {
+            opacity: 1;
+            pointer-events: auto;
+            transform: scale(1);
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .truth-emoji {
+            font-size: clamp(80px, 15vw, 120px);
+            margin-bottom: 20px;
+            animation: bounce 1s ease infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
+        }
+
+        .truth-title {
+            font-size: clamp(32px, 6vw, 48px);
+            font-weight: bold;
+            margin-bottom: 15px;
+            text-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+
+        .truth-subtitle {
+            font-size: clamp(18px, 3vw, 24px);
+            opacity: 0.9;
+            text-align: center;
+            max-width: 600px;
+            line-height: 1.6;
+        }
+
+        .truth-hint {
+            position: fixed;
+            bottom: 8%;
+            font-size: 16px;
+            opacity: 0.7;
+        }
+
+        /* 关闭提示 */
+        .close-hint {
+            position: fixed;
+            bottom: 5%;
+            right: 5%;
+            font-size: 14px;
+            color: rgba(255,255,255,0.5);
+            z-index: 30;
+            opacity: 0;
+            animation: fadeInHint 1s ease 6s forwards;
+        }
+
+        @keyframes fadeInHint {
+            to { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-screenshot"></div>
+
+    <div class="overlay" id="overlay">
+        <!-- 假蓝屏 -->
+        <div class="fake-bsod" id="fakeBsod">
+            <div class="sad-face">:(</div>
+            <div class="error-message">
+                你的电脑遇到问题，需要重新启动。<br>
+                我们只是收集一些错误信息，然后为你重新启动。
+            </div>
+            <div class="progress-section">
+                <div class="progress-text"><span id="progressPercent">0</span>% 完成</div>
+                <div class="progress-bar">
+                    <div class="progress-fill"></div>
+                </div>
+            </div>
+            <div class="error-code">
+                <div>停止代码：<span id="errorCode">SIT_TOO_LONG_EXCEPTION</span></div>
+                <div style="margin-top: 15px; opacity: 0.8;">
+                    详细信息：久坐检测模块发现异常<br>
+                    建议操作：站起来走动以修复此问题
+                </div>
+            </div>
+        </div>
+
+        <!-- 真相揭示 -->
+        <div class="reveal-truth" id="revealTruth">
+            <div class="truth-emoji">😄</div>
+            <div class="truth-title">开玩笑的！</div>
+            <div class="truth-subtitle" id="truthSubtitle">
+                电脑没事，但你的身体需要休息了<br>
+                起来活动一下吧～
+            </div>
+            <div class="truth-hint">点击任意位置关闭</div>
+        </div>
+
+        <div class="close-hint">点击关闭</div>
+    </div>
+
+    <script>
+        const fakeBsod = document.getElementById('fakeBsod');
+        const revealTruth = document.getElementById('revealTruth');
+        const overlay = document.getElementById('overlay');
+        const progressPercent = document.getElementById('progressPercent');
+
+        const errorCodes = [
+            "SIT_TOO_LONG_EXCEPTION",
+            "BACK_PAIN_WARNING",
+            "SEDENTARY_LIFESTYLE_DETECTED",
+            "POSTURE_ERROR_CRITICAL",
+            "BREAK_TIME_REQUIRED"
+        ];
+
+        document.getElementById('errorCode').textContent = 
+            errorCodes[Math.floor(Math.random() * errorCodes.length)];
+
+        // 更新进度
+        let progress = 0;
+        const progressInterval = setInterval(() => {
+            progress++;
+            if (progress <= 70) {
+                progressPercent.textContent = progress;
+            }
+        }, 40);
+
+        // 播放蓝屏音效
+        function playBsodSound() {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const now = audioCtx.currentTime;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, now);
+                osc.frequency.exponentialRampToValueAtTime(80, now + 0.5);
+                
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.8);
+                
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                
+                osc.start(now);
+                osc.stop(now + 0.8);
+            } catch (e) {}
+        }
+
+        // 播放揭示音效
+        function playRevealSound() {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const now = audioCtx.currentTime;
+
+                // 欢快的叮声
+                const freqs = [523.25, 659.25, 783.99, 1046.50];
+                freqs.forEach((freq, i) => {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    
+                    osc.type = 'sine';
+                    osc.frequency.value = freq;
+                    
+                    gain.gain.setValueAtTime(0, now + i * 0.1);
+                    gain.gain.linearRampToValueAtTime(0.3, now + i * 0.1 + 0.05);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.1 + 0.4);
+                    
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    
+                    osc.start(now + i * 0.1);
+                    osc.stop(now + i * 0.1 + 0.5);
+                });
+            } catch (e) {}
+        }
+
+        playBsodSound();
+
+        // 3秒后开始揭示
+        setTimeout(() => {
+            fakeBsod.classList.add('glitch');
+        }, 2500);
+
+        setTimeout(() => {
+            fakeBsod.classList.add('cracking');
+        }, 2800);
+
+        setTimeout(() => {
+            clearInterval(progressInterval);
+            fakeBsod.style.opacity = '0';
+            revealTruth.classList.add('show');
+            playRevealSound();
+        }, 3200);
+
+        // 点击关闭
+        overlay.addEventListener('click', () => {
+            overlay.style.transition = 'opacity 0.3s';
+            overlay.style.opacity = '0';
+            setTimeout(() => window.close(), 300);
+        });
+    </script>
+</body>
+</html>

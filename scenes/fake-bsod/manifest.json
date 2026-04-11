@@ -1,0 +1,9 @@
+{
+  "id": "fake-bsod",
+  "name": "假蓝屏",
+  "author": "hongyu",
+  "description": "假装系统蓝屏崩溃，3秒后揭示玩笑，戏剧化提醒休息",
+  "duration": 8,
+  "tags": ["搞笑", "惊吓", "反转"],
+  "version": "1.0.0"
+}

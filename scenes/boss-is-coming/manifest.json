@@ -1,0 +1,9 @@
+{
+  "id": "boss-is-coming",
+  "name": "老板来了",
+  "author": "hongyu",
+  "description": "电子包浆风格的老板提醒，社畜专属休息提醒",
+  "duration": 8,
+  "tags": ["搞笑", "社畜", "表情包"],
+  "version": "1.0.0"
+}

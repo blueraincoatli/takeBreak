@@ -1,0 +1,9 @@
+{
+  "id": "sunset",
+  "name": "日落提醒",
+  "author": "hongyu",
+  "description": "温馨的日落动画，温柔地提醒你该休息了",
+  "duration": 10,
+  "tags": ["治愈", "温馨", "放松"],
+  "version": "1.0.0"
+}

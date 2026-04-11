@@ -1,0 +1,9 @@
+{
+  "id": "drink-water",
+  "name": "喝水提醒",
+  "author": "hongyu",
+  "description": "经典喝水表情包风格，提醒你该喝水了",
+  "duration": 8,
+  "tags": ["健康", "搞笑", "表情包"],
+  "version": "1.0.0"
+}

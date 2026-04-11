@@ -52,27 +52,36 @@ takeBreak/
 ├── main.js                 # Electron 主进程 + HTTP 服务器
 ├── package.json
 ├── public/
-│   └── models/             # MediaPipe 模型文件（公共，供所有场景复用）
-│       ├── pose_landmarker_lite.task   # 姿态检测 (5.7MB)
-│       ├── face_landmarker.task        # 面部检测 (3.7MB)
-│       └── hand_landmarker.task        # 手部检测 (7.8MB)
-├── scenes/                 # 所有场景目录
+│   ├── models/             # MediaPipe 模型文件（公共，所有场景复用）
+│   │   ├── pose_landmarker_lite.task   # 姿态检测 (5.7MB)
+│   │   ├── face_landmarker.task        # 面部检测 (3.7MB) ⚠️ WASM bug
+│   │   └── hand_landmarker.task        # 手部检测 (7.8MB)
+│   └── claude-logo-*.png   # Claude Logo PNG (256/512/1024)
+├── assets/                 # 项目素材
+│   └── claude-logo.svg     # 官方 Claude Logo (1200x1200 SVG)
+├── scenes/                 # 所有场景目录（唯一来源）
 │   ├── hammer/             # 静态场景：SVG 动画
 │   │   ├── manifest.json
-│   │   ├── index.html
-│   │   └── hammer.svg
+│   │   └── index.html
 │   ├── cat-on-screen/      # 静态场景：视频叠加
 │   ├── cat-paw/            # 静态场景：动态 WebP
 │   ├── squat/              # 运动场景：深蹲计数
 │   │   ├── manifest.json
 │   │   └── index.html      # 内嵌 MediaPipe + 深蹲检测逻辑
-│   ├── drink-water/        # 运动场景（规划中）
+│   ├── drink-water/        # 运动场景（目录已建，待实现）
 │   └── ...
+├── scenes-motion/          # ⚠️ 废弃旧目录，内容已迁移到 scenes/
+├── test/                   # 临时开发测试页
+│   ├── index.html           # 合并测试页（face/pose/hand）
+│   ├── test-motion.html     # 运动检测测试
+│   └── test-skeleton-draw.html # 骨骼渲染测试
 ├── docs/                   # 文档
 │   ├── ARCHITECTURE.md
 │   ├── API-SPEC.md
 │   ├── ALGORITHMS.md
-│   └── ...
+│   ├── TASKS.md
+│   ├── SPEC-MOTION-SCENES.md
+│   └── SPEC-MOTION-ENGINE.md
 └── SCENE-GUIDE.md          # 场景开发指南
 ```
 
