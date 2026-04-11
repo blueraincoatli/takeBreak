@@ -1,9 +1,14 @@
 {
   "id": "breathing",
   "name": "呼吸引导",
-  "author": "hongyu",
-  "description": "极简呼吸引导，帮助用户进行呼吸放松练习",
-  "duration": 15,
+  "author": "blueraincoat",
+  "description": "正经又尴尬的呼吸冥想，20组深呼吸，配合 Claude Logo 跟随节奏收缩放松，中间随机插入瑜伽教练风格的搞笑文案。",
+  "type": "static",
+  "duration": 270,
+  "version": "1.0.0",
   "tags": ["健康", "放松", "冥想"],
-  "version": "1.0.0"
+  "requirements": {
+    "camera": false,
+    "fullscreen": true
+  }
 }

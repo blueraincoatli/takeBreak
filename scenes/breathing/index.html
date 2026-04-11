@@ -1,385 +1,596 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>呼吸引导</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>呼吸引导 — Claude</title>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
-        body {
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
-            font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-        }
+  body {
+    overflow: hidden;
+    font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw; height: 100vh;
+  }
 
-        .bg-screenshot {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            background: #000 no-repeat center center;
-            background-size: 100vw 100vh;
-            z-index: 0;
-        }
+  /* 粉色渐变背景 */
+  #bg {
+    position: fixed; top: 0; left: 0;
+    width: 100vw; height: 100vh;
+    background: linear-gradient(160deg, #fce4ec 0%, #f8bbd0 40%, #f48fb1 100%);
+    z-index: 0;
+  }
 
-        .overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            cursor: pointer;
-            z-index: 10000;
-            opacity: 0;
-            animation: fadeIn 1s ease forwards;
-            background: linear-gradient(180deg, 
-                rgba(135, 206, 235, 0.9) 0%, 
-                rgba(176, 224, 230, 0.95) 50%,
-                rgba(173, 216, 230, 0.9) 100%);
-            transition: background 4s ease;
-        }
+  /* 遮罩层，让边缘更柔和 */
+  #bg::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at center, transparent 30%, rgba(200,80,120,0.15) 100%);
+  }
 
-        .overlay.inhale {
-            background: linear-gradient(180deg, 
-                rgba(135, 206, 235, 0.95) 0%, 
-                rgba(200, 230, 255, 0.98) 50%,
-                rgba(176, 224, 230, 0.95) 100%);
-        }
+  /* 装饰光晕 */
+  .glow {
+    position: fixed;
+    border-radius: 50%;
+    pointer-events: none;
+    filter: blur(60px);
+    opacity: 0.35;
+    z-index: 1;
+  }
+  .glow-1 {
+    width: 50vw; height: 50vw;
+    top: -10vw; left: -10vw;
+    background: #f8bbd0;
+  }
+  .glow-2 {
+    width: 40vw; height: 40vw;
+    bottom: -8vw; right: -8vw;
+    background: #f48fb1;
+  }
+  .glow-3 {
+    width: 30vw; height: 30vw;
+    top: 40%; left: 60%;
+    background: #fce4ec;
+  }
 
-        .overlay.hold {
-            background: linear-gradient(180deg, 
-                rgba(135, 206, 235, 0.95) 0%, 
-                rgba(176, 224, 230, 0.98) 50%,
-                rgba(173, 216, 230, 0.95) 100%);
-        }
+  /* 主容器 */
+  #app {
+    position: fixed; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    z-index: 10;
+  }
 
-        .overlay.exhale {
-            background: linear-gradient(180deg, 
-                rgba(100, 149, 237, 0.9) 0%, 
-                rgba(135, 206, 235, 0.95) 50%,
-                rgba(70, 130, 180, 0.9) 100%);
-        }
+  /* Claude Logo 外圈光环 */
+  #halo {
+    position: absolute;
+    width: calc(min(70vw, 70vh));
+    height: calc(min(70vw, 70vh));
+    border-radius: 50%;
+    border: 1.5px solid rgba(200,80,120,0.2);
+    pointer-events: none;
+  }
 
-        @keyframes fadeIn {
-            to { opacity: 1; }
-        }
+  /* Logo 容器 */
+  #logo-wrap {
+    position: relative;
+    width: calc(min(55vw, 55vh));
+    height: calc(min(55vw, 55vh));
+    display: flex; align-items: center; justify-content: center;
+    transition: transform 4s cubic-bezier(0.45, 0.05, 0.55, 0.95);
+    will-change: transform;
+  }
 
-        /* 呼吸圆圈容器 */
-        .breath-container {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 10;
-        }
+  /* Claude Logo SVG */
+  #claude-logo {
+    width: 85%;
+    height: 85%;
+    filter: drop-shadow(0 8px 32px rgba(200,80,120,0.3));
+    transition: filter 4s ease;
+  }
 
-        /* 呼吸圆圈 */
-        .breath-circle {
-            width: 200px;
-            height: 200px;
-            border-radius: 50%;
-            background: radial-gradient(circle at 30% 30%, 
-                rgba(255, 255, 255, 0.9) 0%, 
-                rgba(135, 206, 235, 0.8) 40%,
-                rgba(70, 130, 180, 0.6) 100%);
-            box-shadow: 
-                0 0 60px 20px rgba(135, 206, 235, 0.4),
-                0 0 100px 40px rgba(135, 206, 235, 0.2),
-                inset 0 0 40px rgba(255, 255, 255, 0.5);
-            transform: scale(0.6);
-            transition: transform 4s ease-in-out, box-shadow 4s ease-in-out;
-        }
+  /* 呼吸进度环 */
+  #progress-ring {
+    position: absolute;
+    inset: -8%;
+    pointer-events: none;
+  }
+  #progress-ring circle.track {
+    fill: none;
+    stroke: rgba(200,80,120,0.12);
+    stroke-width: 3;
+  }
+  #progress-ring circle.fill {
+    fill: none;
+    stroke: rgba(200,80,120,0.5);
+    stroke-width: 3;
+    stroke-linecap: round;
+    transform-origin: center;
+    transform: rotate(-90deg);
+    transition: stroke-dashoffset 0.3s ease;
+  }
 
-        .breath-circle.inhale {
-            transform: scale(1.3);
-            box-shadow: 
-                0 0 80px 30px rgba(135, 206, 235, 0.6),
-                0 0 120px 50px rgba(135, 206, 235, 0.3),
-                inset 0 0 60px rgba(255, 255, 255, 0.7);
-        }
+  /* 顶部标题 */
+  #header {
+    position: fixed;
+    top: 8vh;
+    text-align: center;
+    z-index: 20;
+  }
+  #header h1 {
+    font-size: clamp(18px, 3.5vw, 28px);
+    font-weight: 300;
+    color: rgba(150,50,80,0.8);
+    letter-spacing: 8px;
+    text-transform: uppercase;
+  }
+  #cycle-counter {
+    margin-top: 6px;
+    font-size: clamp(12px, 1.8vw, 16px);
+    color: rgba(150,50,80,0.5);
+    letter-spacing: 3px;
+  }
 
-        .breath-circle.hold {
-            animation: pulse 2s ease-in-out infinite;
-        }
+  /* 主文字提示 */
+  #main-text {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, calc(min(35vw, 35vh) / 2 + 40px));
+    text-align: center;
+    z-index: 20;
+    width: 90vw;
+    max-width: 600px;
+  }
+  #phase-label {
+    font-size: clamp(20px, 4vw, 32px);
+    font-weight: 500;
+    color: rgba(150,40,70,0.95);
+    letter-spacing: 2px;
+    min-height: 1.4em;
+    transition: opacity 0.4s ease;
+  }
+  #sub-text {
+    margin-top: 12px;
+    font-size: clamp(13px, 2vw, 18px);
+    color: rgba(150,40,70,0.6);
+    font-weight: 300;
+    min-height: 1.4em;
+    letter-spacing: 1px;
+    transition: opacity 0.4s ease;
+  }
 
-        @keyframes pulse {
-            0%, 100% { transform: scale(1.3); }
-            50% { transform: scale(1.32); }
-        }
+  /* 计数圆圈 */
+  #countdown {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, calc(min(35vw, 35vh) / 2 + 40px));
+    font-size: clamp(28px, 5vw, 48px);
+    font-weight: 200;
+    color: rgba(200,60,100,0.9);
+    z-index: 25;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+    font-variant-numeric: tabular-nums;
+  }
 
-        .breath-circle.exhale {
-            transform: scale(0.6);
-            box-shadow: 
-                0 0 40px 10px rgba(70, 130, 180, 0.3),
-                0 0 60px 20px rgba(70, 130, 180, 0.1),
-                inset 0 0 30px rgba(255, 255, 255, 0.3);
-        }
+  /* 文案池文字 */
+  #quip {
+    position: fixed;
+    bottom: 18vh;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    z-index: 20;
+    width: 85vw;
+    max-width: 500px;
+  }
+  #quip-text {
+    font-size: clamp(14px, 2.2vw, 20px);
+    color: rgba(150,40,70,0.5);
+    font-weight: 300;
+    font-style: italic;
+    letter-spacing: 1px;
+    opacity: 0;
+    transition: opacity 0.8s ease;
+    line-height: 1.6;
+  }
+  #quip-text.visible {
+    opacity: 1;
+  }
 
-        /* 呼吸文字 */
-        .breath-text {
-            position: fixed;
-            top: 70%;
-            left: 50%;
-            transform: translateX(-50%);
-            font-size: clamp(28px, 6vw, 48px);
-            font-weight: 300;
-            color: #2c5f7c;
-            text-align: center;
-            z-index: 10;
-            opacity: 0;
-            animation: fadeInText 1s ease 0.5s forwards;
-            text-shadow: 0 2px 10px rgba(255,255,255,0.5);
-            letter-spacing: 4px;
-        }
+  /* 进度条 */
+  #progress-bar {
+    position: fixed;
+    bottom: 10vh;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(60vw, 300px);
+    z-index: 20;
+  }
+  #progress-bar-track {
+    height: 2px;
+    background: rgba(200,80,120,0.2);
+    border-radius: 1px;
+    overflow: hidden;
+  }
+  #progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #f48fb1, #ec407a);
+    border-radius: 1px;
+    width: 0%;
+    transition: width 0.5s ease;
+  }
+  #progress-label {
+    margin-top: 8px;
+    text-align: center;
+    font-size: clamp(10px, 1.5vw, 13px);
+    color: rgba(150,40,70,0.4);
+    letter-spacing: 2px;
+  }
 
-        @keyframes fadeInText {
-            to { opacity: 1; }
-        }
-
-        .breath-text .sub {
-            font-size: 0.5em;
-            color: #5a8aa8;
-            margin-top: 10px;
-            display: block;
-        }
-
-        /* 周期计数 */
-        .cycle-count {
-            position: fixed;
-            top: 15%;
-            left: 50%;
-            transform: translateX(-50%);
-            font-size: 16px;
-            color: #5a8aa8;
-            z-index: 10;
-            opacity: 0;
-            animation: fadeInText 1s ease 1s forwards;
-        }
-
-        /* 完成提示 */
-        .complete-message {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: clamp(24px, 5vw, 36px);
-            color: #2c5f7c;
-            text-align: center;
-            z-index: 20;
-            opacity: 0;
-            pointer-events: none;
-            background: rgba(255, 255, 255, 0.9);
-            padding: 30px 50px;
-            border-radius: 20px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
-        }
-
-        .complete-message.show {
-            animation: showComplete 0.8s ease forwards;
-        }
-
-        @keyframes showComplete {
-            to { opacity: 1; }
-        }
-
-        /* 关闭提示 */
-        .close-hint {
-            position: fixed;
-            bottom: 5%;
-            left: 50%;
-            transform: translateX(-50%);
-            font-size: 14px;
-            color: rgba(44, 95, 124, 0.6);
-            z-index: 10;
-            opacity: 0;
-            animation: fadeInText 1s ease 2s forwards;
-        }
-
-        /* 装饰圆环 */
-        .ring {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            border: 2px solid rgba(135, 206, 235, 0.3);
-            border-radius: 50%;
-            pointer-events: none;
-            z-index: 5;
-        }
-
-        .ring:nth-child(1) {
-            width: 280px;
-            height: 280px;
-            animation: ringExpand 4s ease-in-out infinite;
-        }
-
-        .ring:nth-child(2) {
-            width: 360px;
-            height: 360px;
-            animation: ringExpand 4s ease-in-out infinite 0.5s;
-        }
-
-        @keyframes ringExpand {
-            0%, 100% {
-                transform: translate(-50%, -50%) scale(0.8);
-                opacity: 0.3;
-            }
-            50% {
-                transform: translate(-50%, -50%) scale(1.2);
-                opacity: 0.1;
-            }
-        }
-    </style>
+  /* 完成画面 */
+  #complete {
+    position: fixed; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    z-index: 100;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 1.2s ease;
+    background: linear-gradient(160deg, #fce4ec 0%, #f8bbd0 50%, #f48fb1 100%);
+  }
+  #complete.show {
+    opacity: 1;
+    pointer-events: all;
+  }
+  #complete-logo {
+    width: min(40vw, 40vh);
+    opacity: 0.7;
+    margin-bottom: 40px;
+    animation: gentlePulse 3s ease-in-out infinite;
+  }
+  @keyframes gentlePulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+  }
+  #complete h2 {
+    font-size: clamp(24px, 5vw, 42px);
+    font-weight: 300;
+    color: rgba(150,40,70,0.9);
+    letter-spacing: 6px;
+    margin-bottom: 16px;
+  }
+  #complete p {
+    font-size: clamp(14px, 2.2vw, 20px);
+    color: rgba(150,40,70,0.6);
+    font-weight: 300;
+  }
+  #complete-close {
+    margin-top: 48px;
+    padding: 12px 40px;
+    border: 1px solid rgba(200,80,120,0.4);
+    border-radius: 30px;
+    background: transparent;
+    color: rgba(150,40,70,0.7);
+    font-size: clamp(13px, 1.8vw, 16px);
+    letter-spacing: 3px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.3s ease;
+  }
+  #complete-close:hover {
+    background: rgba(200,80,120,0.1);
+    border-color: rgba(200,80,120,0.6);
+  }
+</style>
 </head>
 <body>
-    <div class="bg-screenshot"></div>
 
-    <div class="overlay" id="overlay">
-        <!-- 装饰圆环 -->
-        <div class="ring"></div>
-        <div class="ring"></div>
+<div id="bg">
+  <div class="glow glow-1"></div>
+  <div class="glow glow-2"></div>
+  <div class="glow glow-3"></div>
+</div>
 
-        <!-- 周期计数 -->
-        <div class="cycle-count" id="cycleCount">呼吸周期：0 / 2</div>
+<div id="app">
+  <!-- 标题 -->
+  <div id="header">
+    <h1>呼吸引导</h1>
+    <div id="cycle-counter">第 <span id="current-cycle">0</span> / <span id="total-cycle">20</span> 组</div>
+  </div>
 
-        <!-- 呼吸圆圈 -->
-        <div class="breath-container">
-            <div class="breath-circle" id="breathCircle"></div>
-        </div>
+  <!-- 外圈 -->
+  <div id="halo"></div>
 
-        <!-- 呼吸文字 -->
-        <div class="breath-text" id="breathText">
-            准备开始
-            <span class="sub">跟随圆圈呼吸</span>
-        </div>
+  <!-- Logo -->
+  <div id="logo-wrap">
+    <!-- 进度环 SVG -->
+    <svg id="progress-ring" viewBox="0 0 200 200">
+      <circle class="track" cx="100" cy="100" r="96"/>
+      <circle class="fill" id="ring-fill" cx="100" cy="100" r="96"
+        stroke-dasharray="603" stroke-dashoffset="603"/>
+    </svg>
 
-        <!-- 完成提示 -->
-        <div class="complete-message" id="completeMessage">
-            <div>🧘 呼吸完成</div>
-            <div style="font-size: 0.6em; margin-top: 15px; color: #5a8aa8;">
-                现在站起来活动一下吧
-            </div>
-        </div>
+    <!-- Claude Logo SVG -->
+    <svg id="claude-logo" viewBox="0 0 1200 1200" xmlns="http://www.w3.org/2000/svg">
+      <g id="g314">
+        <path id="path147" fill="#c04078" stroke="none"
+          d="M 233.959793 800.214905 L 468.644287 668.536987 L 472.590637 657.100647 L 468.644287 650.738403 L 457.208069 650.738403 L 417.986633 648.322144 L 283.892639 644.69812 L 167.597321 639.865845 L 54.926208 633.825623 L 26.577238 627.785339 L 3.3e-5 592.751709 L 2.73832 575.27533 L 26.577238 559.248352 L 60.724873 562.228149 L 136.187973 567.382629 L 249.422867 575.194763 L 331.570496 580.026978 L 453.261841 592.671082 L 472.590637 592.671082 L 475.328857 584.859009 L 468.724915 580.026978 L 463.570557 575.194763 L 346.389313 495.785217 L 219.543671 411.865906 L 153.100723 363.543762 L 117.181267 339.060425 L 99.060455 316.107361 L 91.248367 266.01355 L 123.865784 230.093994 L 167.677887 233.073853 L 178.872513 236.053772 L 223.248367 270.201477 L 318.040283 343.570496 L 441.825592 434.738342 L 459.946411 449.798706 L 467.194672 444.64447 L 468.080597 441.020203 L 459.946411 427.409485 L 392.617493 305.718323 L 320.778564 181.932983 L 288.80542 130.630859 L 280.348999 99.865845 C 277.369171 87.221436 275.194641 76.590698 275.194641 63.624268 L 312.322174 13.20813 L 332.8591 6.604126 L 382.389313 13.20813 L 403.248352 31.328979 L 434.013519 101.71814 L 483.865753 212.537048 L 561.181274 363.221497 L 583.812134 407.919434 L 595.892639 449.315491 L 600.40271 461.959839 L 608.214783 461.959839 L 608.214783 454.711609 L 614.577271 369.825623 L 626.335632 265.61084 L 637.771851 131.516846 L 641.718201 93.745117 L 660.402832 48.483276 L 697.530334 24.000122 L 726.52356 37.852417 L 750.362549 72 L 747.060486 94.067139 L 732.886047 186.201416 L 705.100708 330.52356 L 686.979919 427.167847 L 697.530334 427.167847 L 709.61084 415.087341 L 758.496704 350.174561 L 840.644348 247.490051 L 876.885925 206.738342 L 919.167847 161.71814 L 946.308838 140.29541 L 997.61084 140.29541 L 1035.38269 196.429626 L 1018.469849 254.416199 L 965.637634 321.422852 L 921.825562 378.201538 L 859.006714 462.765259 L 819.785278 530.41626 L 823.409424 535.812073 L 832.75177 534.92627 L 974.657776 504.724915 L 1051.328979 490.872559 L 1142.818848 475.167786 L 1184.214844 494.496582 L 1188.724854 514.147644 L 1172.456421 554.335693 L 1074.604126 578.496765 L 959.838989 601.449829 L 788.939636 641.879272 L 786.845764 643.409485 L 789.261841 646.389343 L 866.255127 653.637634 L 899.194702 655.409424 L 979.812134 655.409424 L 1129.932861 666.604187 L 1169.154419 692.537109 L 1192.671265 724.268677 L 1188.724854 748.429688 L 1128.322144 779.194641 L 1046.818848 759.865845 L 856.590759 714.604126 L 791.355774 698.335754 L 782.335693 698.335754 L 782.335693 703.731567 L 836.69812 756.885986 L 936.322205 846.845581 L 1061.073975 962.81897 L 1067.436279 991.490112 L 1051.409424 1014.120911 L 1034.496704 1011.704712 L 924.885986 929.234924 L 882.604126 892.107544 L 786.845764 811.48999 L 780.483276 811.48999 L 780.483276 819.946289 L 802.550415 852.241699 L 919.087341 1027.409424 L 925.127625 1081.127686 L 916.671204 1098.604126 L 886.469849 1109.154419 L 853.288696 1103.114136 L 785.073914 1007.355835 L 714.684631 899.516785 L 657.906067 802.872498 L 650.979858 806.81897 L 617.476624 1167.704834 L 601.771851 1186.147705 L 565.530212 1200 L 535.328857 1177.046997 L 519.302124 1139.919556 L 535.328857 1066.550537 L 554.657776 970.792053 L 570.362488 894.68457 L 584.536926 800.134277 L 592.993347 768.724976 L 592.429626 766.630859 L 585.503479 767.516968 L 514.22821 865.369263 L 405.825531 1011.865906 L 320.053711 1103.677979 L 299.516815 1111.812256 L 263.919525 1093.369263 L 267.221497 1060.429688 L 287.114136 1031.114136 L 405.825531 880.107361 L 477.422913 786.52356 L 523.651062 732.483276 L 523.328918 724.671265 L 520.590698 724.671265 L 205.288605 929.395935 L 149.154434 936.644409 L 124.993355 914.01355 L 127.973183 876.885986 L 139.409409 864.80542 L 234.201385 799.570435 L 233.879227 799.8927 Z"/>
+      </g>
+    </svg>
+  </div>
 
-        <div class="close-hint">点击任意位置关闭</div>
+  <!-- 文字提示 -->
+  <div id="main-text">
+    <div id="phase-label">准备开始...</div>
+    <div id="sub-text"></div>
+  </div>
+
+  <!-- 屏息倒计时 -->
+  <div id="countdown"></div>
+
+  <!-- 文案池 -->
+  <div id="quip">
+    <div id="quip-text"></div>
+  </div>
+
+  <!-- 进度条 -->
+  <div id="progress-bar">
+    <div id="progress-bar-track">
+      <div id="progress-bar-fill"></div>
     </div>
+    <div id="progress-label">深呼吸进度</div>
+  </div>
+</div>
 
-    <script>
-        const breathCircle = document.getElementById('breathCircle');
-        const breathText = document.getElementById('breathText');
-        const overlay = document.getElementById('overlay');
-        const cycleCount = document.getElementById('cycleCount');
-        const completeMessage = document.getElementById('completeMessage');
+<!-- 完成画面 -->
+<div id="complete">
+  <svg id="complete-logo" viewBox="0 0 1200 1200" xmlns="http://www.w3.org/2000/svg">
+    <path fill="#c04078" d="M 233.959793 800.214905 L 468.644287 668.536987 L 472.590637 657.100647 L 468.644287 650.738403 L 457.208069 650.738403 L 417.986633 648.322144 L 283.892639 644.69812 L 167.597321 639.865845 L 54.926208 633.825623 L 26.577238 627.785339 L 3.3e-5 592.751709 L 2.73832 575.27533 L 26.577238 559.248352 L 60.724873 562.228149 L 136.187973 567.382629 L 249.422867 575.194763 L 331.570496 580.026978 L 453.261841 592.671082 L 472.590637 592.671082 L 475.328857 584.859009 L 468.724915 580.026978 L 463.570557 575.194763 L 346.389313 495.785217 L 219.543671 411.865906 L 153.100723 363.543762 L 117.181267 339.060425 L 99.060455 316.107361 L 91.248367 266.01355 L 123.865784 230.093994 L 167.677887 233.073853 L 178.872513 236.053772 L 223.248367 270.201477 L 318.040283 343.570496 L 441.825592 434.738342 L 459.946411 449.798706 L 467.194672 444.64447 L 468.080597 441.020203 L 459.946411 427.409485 L 392.617493 305.718323 L 320.778564 181.932983 L 288.80542 130.630859 L 280.348999 99.865845 C 277.369171 87.221436 275.194641 76.590698 275.194641 63.624268 L 312.322174 13.20813 L 332.8591 6.604126 L 382.389313 13.20813 L 403.248352 31.328979 L 434.013519 101.71814 L 483.865753 212.537048 L 561.181274 363.221497 L 583.812134 407.919434 L 595.892639 449.315491 L 600.40271 461.959839 L 608.214783 461.959839 L 608.214783 454.711609 L 614.577271 369.825623 L 626.335632 265.61084 L 637.771851 131.516846 L 641.718201 93.745117 L 660.402832 48.483276 L 697.530334 24.000122 L 726.52356 37.852417 L 750.362549 72 L 747.060486 94.067139 L 732.886047 186.201416 L 705.100708 330.52356 L 686.979919 427.167847 L 697.530334 427.167847 L 709.61084 415.087341 L 758.496704 350.174561 L 840.644348 247.490051 L 876.885925 206.738342 L 919.167847 161.71814 L 946.308838 140.29541 L 997.61084 140.29541 L 1035.38269 196.429626 L 1018.469849 254.416199 L 965.637634 321.422852 L 921.825562 378.201538 L 859.006714 462.765259 L 819.785278 530.41626 L 823.409424 535.812073 L 832.75177 534.92627 L 974.657776 504.724915 L 1051.328979 490.872559 L 1142.818848 475.167786 L 1184.214844 494.496582 L 1188.724854 514.147644 L 1172.456421 554.335693 L 1074.604126 578.496765 L 959.838989 601.449829 L 788.939636 641.879272 L 786.845764 643.409485 L 789.261841 646.389343 L 866.255127 653.637634 L 899.194702 655.409424 L 979.812134 655.409424 L 1129.932861 666.604187 L 1169.154419 692.537109 L 1192.671265 724.268677 L 1188.724854 748.429688 L 1128.322144 779.194641 L 1046.818848 759.865845 L 856.590759 714.604126 L 791.355774 698.335754 L 782.335693 698.335754 L 782.335693 703.731567 L 836.69812 756.885986 L 936.322205 846.845581 L 1061.073975 962.81897 L 1067.436279 991.490112 L 1051.409424 1014.120911 L 1034.496704 1011.704712 L 924.885986 929.234924 L 882.604126 892.107544 L 786.845764 811.48999 L 780.483276 811.48999 L 780.483276 819.946289 L 802.550415 852.241699 L 919.087341 1027.409424 L 925.127625 1081.127686 L 916.671204 1098.604126 L 886.469849 1109.154419 L 853.288696 1103.114136 L 785.073914 1007.355835 L 714.684631 899.516785 L 657.906067 802.872498 L 650.979858 806.81897 L 617.476624 1167.704834 L 601.771851 1186.147705 L 565.530212 1200 L 535.328857 1177.046997 L 519.302124 1139.919556 L 535.328857 1066.550537 L 554.657776 970.792053 L 570.362488 894.68457 L 584.536926 800.134277 L 592.993347 768.724976 L 592.429626 766.630859 L 585.503479 767.516968 L 514.22821 865.369263 L 405.825531 1011.865906 L 320.053711 1103.677979 L 299.516815 1111.812256 L 263.919525 1093.369263 L 267.221497 1060.429688 L 287.114136 1031.114136 L 405.825531 880.107361 L 477.422913 786.52356 L 523.651062 732.483276 L 523.328918 724.671265 L 520.590698 724.671265 L 205.288605 929.395935 L 149.154434 936.644409 L 124.993355 914.01355 L 127.973183 876.885986 L 139.409409 864.80542 L 234.201385 799.570435 L 233.879227 799.8927 Z"/>
+  </svg>
+  <h2>完成</h2>
+  <p>20 组呼吸完成，你的身体正在感谢你。</p>
+  <button id="complete-close" onclick="window.close()">关闭</button>
+</div>
 
-        let currentCycle = 0;
-        const totalCycles = 2;
-        let isComplete = false;
+<script>
+// ─── 配置 ───
+const TOTAL_CYCLES = 20;
+const PHASE = {
+  INHALE:    { dur: 4000, scale: 1.0  },
+  HOLD_IN:   { dur: 3000, scale: 1.0  },
+  EXHALE:    { dur: 4000, scale: 0.65 },
+  HOLD_OUT:  { dur: 1000, scale: 0.65 },
+};
 
-        const texts = {
-            inhale: { main: '吸气...', sub: '慢慢吸气，感受腹部扩张' },
-            hold: { main: '屏息...', sub: '保持片刻' },
-            exhale: { main: '呼气...', sub: '慢慢呼气，放松身体' }
-        };
+// ─── 瑜伽文案池 ───
+const QUIPS = [
+  "你的前列腺正在感谢你。",
+  "把意识轻轻放在你的骨盆底肌上。",
+  "感受气体在你的腹腔里流动。",
+  "想象你是一株正在光合作用的植物。",
+  "很好，现在假装你在闻一朵花。",
+  "把你的尾骨轻轻向上提……对，就是那个感觉。",
+  "呼吸是生命给你的免费礼物。",
+  "想象你正在海边，但你不用动。",
+  "很好，你的横膈膜在说谢谢。",
+  "现在你是一个会呼吸的咖啡杯。",
+  "把烦恼呼出去，把平静吸进来。",
+  "很好，你的肺正在做它们最擅长的事。",
+  "想象你的脊椎是一串正在放松的珍珠。",
+  "现在你是一个正在冥想的水母。",
+  "很好，你的肋骨正在优雅地扩张。",
+  "把注意力放在你的耻骨联合处。",
+  "你正在做一个合法的呼吸。",
+  "很好，你现在是有机呼吸生物。",
+  "感受气息像一只小蛇一样滑入你的身体。",
+  "你正在为你的线粒体充值。",
+  "想象你是一块正在午睡的岩石。",
+  "很好，你的身体正在下载平静。",
+  "现在你是海洋，深邃而宁静。",
+  "很好，你的每一次呼吸都在修复你。",
+  "你不是在摸鱼，你是在正念呼吸。",
+  "感受空气穿过你的鼻毛……很滋养。",
+  "现在，你是一个呼吸着的数据包。",
+  "很好，你的迷走神经被激活了。",
+  "想象你是一棵正在蒸腾作用的树。",
+  "把焦虑呼出去，它反正也不会回来。",
+  "你正在解锁「活着」这个成就。",
+  "很好，你的含氧量正在悄悄提升。",
+  "现在你是一个有呼吸的烤宽面条。",
+  "你的每一个细胞都在说：终于有人让我休息了。",
+  "很好，你正在正确地活着。",
+  "想象你正在做一个非常合法的瑜伽。",
+  "你不需要做到完美，呼吸本身就是答案。",
+];
 
-        function updateText(phase) {
-            breathText.innerHTML = `${texts[phase].main}<span class="sub">${texts[phase].sub}</span>`;
-        }
+// ─── DOM ───
+const logoWrap     = document.getElementById('logo-wrap');
+const phaseLabel   = document.getElementById('phase-label');
+const subText      = document.getElementById('sub-text');
+const countdown    = document.getElementById('countdown');
+const quipText     = document.getElementById('quip-text');
+const currentCycle = document.getElementById('current-cycle');
+const totalCycle   = document.getElementById('total-cycle');
+const progFill     = document.getElementById('progress-bar-fill');
+const ringFill     = document.getElementById('ring-fill');
+const completeEl   = document.getElementById('complete');
 
-        function playBreathSound(type) {
-            try {
-                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                const now = audioCtx.currentTime;
-                const osc = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
+totalCycle.textContent = TOTAL_CYCLES;
 
-                osc.type = 'sine';
-                
-                if (type === 'inhale') {
-                    osc.frequency.setValueAtTime(300, now);
-                    osc.frequency.linearRampToValueAtTime(400, now + 4);
-                    gain.gain.setValueAtTime(0.1, now);
-                    gain.gain.linearRampToValueAtTime(0.05, now + 4);
-                } else if (type === 'exhale') {
-                    osc.frequency.setValueAtTime(400, now);
-                    osc.frequency.linearRampToValueAtTime(300, now + 4);
-                    gain.gain.setValueAtTime(0.05, now);
-                    gain.gain.linearRampToValueAtTime(0.1, now + 4);
-                }
+const RING_CIRC = 603; // 2π × 96
 
-                osc.connect(gain);
-                gain.connect(audioCtx.destination);
-                osc.start(now);
-                osc.stop(now + 4);
-            } catch (e) {}
-        }
+// ─── 音效 ───
+let audioCtx = null;
+function getAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+function playTone(freq, dur, vol = 0.12) {
+  try {
+    const ctx = getAudio();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(vol, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(); osc.stop(ctx.currentTime + dur);
+  } catch(e) {}
+}
 
-        function breatheCycle() {
-            if (currentCycle >= totalCycles) {
-                // 完成
-                isComplete = true;
-                completeMessage.classList.add('show');
-                breathText.style.opacity = '0';
-                cycleCount.style.opacity = '0';
-                breathCircle.style.opacity = '0.3';
-                return;
-            }
+// ─── 进度更新 ───
+function setProgress(cycle, phase, phaseProgress) {
+  const total = (cycle - 1) / TOTAL_CYCLES;
+  const phaseWeight = { inhale: 0.35, hold_in: 0.15, exhale: 0.45, hold_out: 0.05 };
+  const phaseName = { inhale: 'inhale', hold_in: 'hold_in', exhale: 'exhale', hold_out: 'hold_out' }[phase];
+  const w = phaseWeight[phaseName] || 0;
+  progFill.style.width = `${Math.round((total + w * phaseProgress) * 100)}%`;
+  ringFill.style.strokeDashoffset = RING_CIRC * (1 - (total + w * phaseProgress));
+}
 
-            currentCycle++;
-            cycleCount.textContent = `呼吸周期：${currentCycle} / ${totalCycles}`;
+// ─── 相位切换 ───
+function setPhaseUI(label, sub = '', count = null) {
+  phaseLabel.style.opacity = '0';
+  setTimeout(() => {
+    phaseLabel.textContent = label;
+    subText.textContent = sub;
+    phaseLabel.style.opacity = '1';
+    subText.style.opacity = sub ? '1' : '0';
+  }, 300);
+  countdown.style.opacity = count !== null ? '1' : '0';
+  countdown.textContent = count !== null ? String(count) : '';
+}
 
-            // 吸气 4秒
-            setTimeout(() => {
-                overlay.className = 'overlay inhale';
-                breathCircle.className = 'breath-circle inhale';
-                updateText('inhale');
-                playBreathSound('inhale');
-            }, 100);
+// ─── 缩放动画 ───
+function setScale(scale, dur) {
+  logoWrap.style.transition = `transform ${dur}ms cubic-bezier(0.45,0.05,0.55,0.95)`;
+  logoWrap.style.transform = `scale(${scale})`;
+}
 
-            // 屏息 2秒
-            setTimeout(() => {
-                overlay.className = 'overlay hold';
-                breathCircle.className = 'breath-circle hold';
-                updateText('hold');
-            }, 4100);
+// ─── 文案池 ───
+let quipVisible = false;
+function showQuip(cycle) {
+  if (cycle < 3) return; // 前两轮不插文案
+  if (quipVisible) {
+    quipText.classList.remove('visible');
+    quipVisible = false;
+  }
+  // 40% 概率插一条
+  if (Math.random() < 0.4) {
+    const text = QUIPS[Math.floor(Math.random() * QUIPS.length)];
+    quipText.textContent = text;
+    quipText.classList.add('visible');
+    quipVisible = true;
+    // 3 秒后消失
+    setTimeout(() => {
+      quipText.classList.remove('visible');
+      quipVisible = false;
+    }, 3200);
+  }
+}
 
-            // 呼气 4秒
-            setTimeout(() => {
-                overlay.className = 'overlay exhale';
-                breathCircle.className = 'breath-circle exhale';
-                updateText('exhale');
-                playBreathSound('exhale');
-            }, 6100);
+// ─── 屏息倒计时 ───
+function countdownHold(sec) {
+  let n = sec;
+  countdown.textContent = n;
+  countdown.style.opacity = '1';
+  const iv = setInterval(() => {
+    n--;
+    if (n <= 0) {
+      clearInterval(iv);
+      countdown.style.opacity = '0';
+    } else {
+      countdown.textContent = n;
+      playTone(440, 0.15, 0.08);
+    }
+  }, 1000);
+  playTone(440, 0.15, 0.08); // 首秒
+}
 
-            // 下一周期
-            setTimeout(() => {
-                breatheCycle();
-            }, 10100);
-        }
+// ─── 进度动画 ───
+let animFrame = null;
+function animateProgress(phase, dur, cycle) {
+  const start = performance.now();
+  function tick(now) {
+    const t = Math.min((now - start) / dur, 1);
+    setProgress(cycle, phase, t);
+    if (t < 1) animFrame = requestAnimationFrame(tick);
+  }
+  if (animFrame) cancelAnimationFrame(animFrame);
+  animFrame = requestAnimationFrame(tick);
+}
 
-        // 开始呼吸
-        setTimeout(() => {
-            updateText('inhale');
-            breatheCycle();
-        }, 1500);
+// ─── 主循环 ───
+let cycle = 0;
 
-        // 点击关闭
-        overlay.addEventListener('click', () => {
-            overlay.style.transition = 'opacity 0.5s';
-            overlay.style.opacity = '0';
-            setTimeout(() => window.close(), 500);
-        });
-    </script>
+function breathe() {
+  if (cycle >= TOTAL_CYCLES) {
+    showComplete(); return;
+  }
+  cycle++;
+  currentCycle.textContent = cycle;
+
+  const p = PHASE;
+
+  // ── 吸气 ──
+  setPhaseUI('缓缓吸气……', '让气息沉入腹部', null);
+  setScale(p.INHALE.scale, p.INHALE.dur);
+  animateProgress('inhale', p.INHALE.dur, cycle);
+  playTone(300, 0.6, 0.06);
+
+  // ── 吸气末提示文案 ──
+  setTimeout(() => showQuip(cycle), p.INHALE.dur * 0.6);
+
+  // ── 屏息 ──
+  const holdStart = p.INHALE.dur;
+  setTimeout(() => {
+    setPhaseUI('屏住呼吸……', '保持不动，感受气息在身体里', null);
+    countdownHold(3);
+    animateProgress('hold_in', p.HOLD_IN.dur, cycle);
+  }, holdStart);
+
+  // ── 呼气 ──
+  const exhaleStart = holdStart + p.HOLD_IN.dur;
+  setTimeout(() => {
+    setPhaseUI('缓缓放松……', '让气息自然流出', null);
+    setScale(p.EXHALE.scale, p.EXHALE.dur);
+    animateProgress('exhale', p.EXHALE.dur, cycle);
+    playTone(260, 0.6, 0.06);
+  }, exhaleStart);
+
+  // ── 短暂屏息（底部） ──
+  const holdOutStart = exhaleStart + p.EXHALE.dur;
+  setTimeout(() => {
+    setPhaseUI('轻轻停留', '', null);
+    animateProgress('hold_out', p.HOLD_OUT.dur, cycle);
+  }, holdOutStart);
+
+  // ── 下一轮 ──
+  const nextStart = holdOutStart + p.HOLD_OUT.dur;
+  setTimeout(breathe, nextStart);
+}
+
+// ─── 完成 ───
+function showComplete() {
+  setPhaseUI('', '');
+  quipText.classList.remove('visible');
+  playTone(523, 0.8, 0.15);
+  playTone(659, 1.0, 0.15);
+  playTone(784, 1.2, 0.15);
+  setTimeout(() => completeEl.classList.add('show'), 800);
+  // 通知主应用
+  fetch('http://localhost:3721/api/scene-complete', { method: 'POST' }).catch(() => {});
+}
+
+// ─── 启动 ───
+setTimeout(breathe, 1800);
+</script>
 </body>
 </html>
