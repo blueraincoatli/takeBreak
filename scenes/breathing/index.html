@@ -15,582 +15,519 @@
     width: 100vw; height: 100vh;
   }
 
-  /* 粉色渐变背景 */
+  /* 背景 — 水母色呼吸 */
   #bg {
-    position: fixed; top: 0; left: 0;
-    width: 100vw; height: 100vh;
-    background: linear-gradient(160deg, #fce4ec 0%, #f8bbd0 40%, #f48fb1 100%);
+    position: fixed; inset: 0;
+    background: #fce4ec;
+    transition: background 4s ease-in-out;
     z-index: 0;
   }
 
-  /* 遮罩层，让边缘更柔和 */
-  #bg::after {
+  /* 柔和内光 */
+  #bg::before {
     content: '';
     position: absolute; inset: 0;
-    background: radial-gradient(ellipse at center, transparent 30%, rgba(200,80,120,0.15) 100%);
+    background: radial-gradient(ellipse 80% 60% at 50% 45%,
+      rgba(255,200,220,0.6) 0%,
+      transparent 70%);
+    pointer-events: none;
   }
 
-  /* 装饰光晕 */
-  .glow {
+  /* ─── Logo 区域 ─── */
+  #scene {
     position: fixed;
-    border-radius: 50%;
-    pointer-events: none;
-    filter: blur(60px);
-    opacity: 0.35;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 10;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* 背景放射层 SVG — 在 logo 背后 */
+  #rays-svg {
+    position: absolute;
+    width: calc(min(80vw, 80vh));
+    height: calc(min(80vw, 80vh));
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    overflow: visible;
     z-index: 1;
   }
-  .glow-1 {
-    width: 50vw; height: 50vw;
-    top: -10vw; left: -10vw;
-    background: #f8bbd0;
-  }
-  .glow-2 {
-    width: 40vw; height: 40vw;
-    bottom: -8vw; right: -8vw;
-    background: #f48fb1;
-  }
-  .glow-3 {
-    width: 30vw; height: 30vw;
-    top: 40%; left: 60%;
-    background: #fce4ec;
+
+  /* 每条放射线 */
+  .ray {
+    stroke: rgba(192, 64, 120, 0.35);
+    stroke-linecap: round;
+    transform-origin: 50% 50%;
+    transition: opacity 0.5s ease;
   }
 
-  /* 主容器 */
-  #app {
-    position: fixed; inset: 0;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    z-index: 10;
-  }
-
-  /* Claude Logo 外圈光环 */
-  #halo {
-    position: absolute;
-    width: calc(min(70vw, 70vh));
-    height: calc(min(70vw, 70vh));
-    border-radius: 50%;
-    border: 1.5px solid rgba(200,80,120,0.2);
-    pointer-events: none;
-  }
-
-  /* Logo 容器 */
-  #logo-wrap {
-    position: relative;
-    width: calc(min(55vw, 55vh));
-    height: calc(min(55vw, 55vh));
-    display: flex; align-items: center; justify-content: center;
-    transition: transform 4s cubic-bezier(0.45, 0.05, 0.55, 0.95);
-    will-change: transform;
-  }
-
-  /* Claude Logo SVG */
+  /* ─── Claude Logo ─── */
   #claude-logo {
-    width: 85%;
-    height: 85%;
-    filter: drop-shadow(0 8px 32px rgba(200,80,120,0.3));
+    position: relative; z-index: 5;
+    width: calc(min(42vw, 42vh));
+    height: calc(min(42vw, 42vh));
+    filter: drop-shadow(0 0 0px rgba(192,64,120,0));
     transition: filter 4s ease;
   }
 
-  /* 呼吸进度环 */
-  #progress-ring {
-    position: absolute;
-    inset: -8%;
-    pointer-events: none;
-  }
-  #progress-ring circle.track {
-    fill: none;
-    stroke: rgba(200,80,120,0.12);
-    stroke-width: 3;
-  }
-  #progress-ring circle.fill {
-    fill: none;
-    stroke: rgba(200,80,120,0.5);
-    stroke-width: 3;
-    stroke-linecap: round;
-    transform-origin: center;
-    transform: rotate(-90deg);
-    transition: stroke-dashoffset 0.3s ease;
-  }
-
-  /* 顶部标题 */
+  /* ─── 顶部 ─── */
   #header {
-    position: fixed;
-    top: 8vh;
-    text-align: center;
+    position: fixed; top: 7vh;
+    text-align: center; width: 100%;
     z-index: 20;
   }
   #header h1 {
-    font-size: clamp(18px, 3.5vw, 28px);
-    font-weight: 300;
-    color: rgba(150,50,80,0.8);
-    letter-spacing: 8px;
-    text-transform: uppercase;
+    font-size: clamp(16px, 3vw, 26px);
+    font-weight: 300; letter-spacing: 10px;
+    color: rgba(150,40,75,0.75); text-transform: uppercase;
   }
   #cycle-counter {
-    margin-top: 6px;
-    font-size: clamp(12px, 1.8vw, 16px);
-    color: rgba(150,50,80,0.5);
-    letter-spacing: 3px;
+    margin-top: 8px;
+    font-size: clamp(11px, 1.6vw, 15px);
+    color: rgba(150,40,75,0.45); letter-spacing: 3px;
   }
 
-  /* 主文字提示 */
+  /* ─── 主文字 ─── */
   #main-text {
     position: fixed;
     top: 50%;
     left: 50%;
-    transform: translate(-50%, calc(min(35vw, 35vh) / 2 + 40px));
-    text-align: center;
+    transform: translate(-50%, calc(min(42vw, 42vh) / 2 + 70px));
+    text-align: center; width: 90vw; max-width: 580px;
     z-index: 20;
-    width: 90vw;
-    max-width: 600px;
   }
   #phase-label {
-    font-size: clamp(20px, 4vw, 32px);
-    font-weight: 500;
-    color: rgba(150,40,70,0.95);
-    letter-spacing: 2px;
-    min-height: 1.4em;
-    transition: opacity 0.4s ease;
+    font-size: clamp(18px, 3.8vw, 30px);
+    font-weight: 500; letter-spacing: 2px;
+    color: rgba(140,35,70,0.95);
+    min-height: 1.5em;
+    transition: opacity 0.35s ease;
   }
-  #sub-text {
-    margin-top: 12px;
-    font-size: clamp(13px, 2vw, 18px);
-    color: rgba(150,40,70,0.6);
-    font-weight: 300;
-    min-height: 1.4em;
-    letter-spacing: 1px;
-    transition: opacity 0.4s ease;
+  #sub-label {
+    margin-top: 10px;
+    font-size: clamp(12px, 1.8vw, 17px);
+    color: rgba(140,35,70,0.55); font-weight: 300;
+    min-height: 1.4em; letter-spacing: 1px;
+    transition: opacity 0.35s ease;
   }
 
-  /* 计数圆圈 */
+  /* 屏息大数字 */
   #countdown {
     position: fixed;
     top: 50%;
     left: 50%;
-    transform: translate(-50%, calc(min(35vw, 35vh) / 2 + 40px));
-    font-size: clamp(28px, 5vw, 48px);
-    font-weight: 200;
-    color: rgba(200,60,100,0.9);
-    z-index: 25;
-    opacity: 0;
+    transform: translate(-50%, calc(min(42vw, 42vh) / 2 + 70px));
+    font-size: clamp(30px, 6vw, 54px); font-weight: 200;
+    color: rgba(192,60,100,0.85);
+    z-index: 25; opacity: 0;
+    font-variant-numeric: tabular-nums;
     pointer-events: none;
     transition: opacity 0.3s ease;
-    font-variant-numeric: tabular-nums;
   }
 
-  /* 文案池文字 */
+  /* ─── 文案池 ─── */
   #quip {
-    position: fixed;
-    bottom: 18vh;
-    left: 50%;
-    transform: translateX(-50%);
-    text-align: center;
-    z-index: 20;
-    width: 85vw;
-    max-width: 500px;
+    position: fixed; bottom: 16vh;
+    left: 50%; transform: translateX(-50%);
+    width: 82vw; max-width: 460px;
+    text-align: center; z-index: 20;
   }
   #quip-text {
-    font-size: clamp(14px, 2.2vw, 20px);
-    color: rgba(150,40,70,0.5);
-    font-weight: 300;
-    font-style: italic;
-    letter-spacing: 1px;
-    opacity: 0;
-    transition: opacity 0.8s ease;
-    line-height: 1.6;
+    font-size: clamp(13px, 2vw, 19px);
+    color: rgba(140,35,70,0.48); font-weight: 300;
+    font-style: italic; letter-spacing: 0.5px;
+    opacity: 0; transition: opacity 0.9s ease;
+    line-height: 1.7;
   }
-  #quip-text.visible {
-    opacity: 1;
-  }
+  #quip-text.visible { opacity: 1; }
 
-  /* 进度条 */
-  #progress-bar {
-    position: fixed;
-    bottom: 10vh;
-    left: 50%;
-    transform: translateX(-50%);
-    width: min(60vw, 300px);
+  /* ─── 进度条 ─── */
+  #prog {
+    position: fixed; bottom: 9vh;
+    left: 50%; transform: translateX(-50%);
+    width: min(55vw, 280px);
     z-index: 20;
   }
-  #progress-bar-track {
-    height: 2px;
-    background: rgba(200,80,120,0.2);
-    border-radius: 1px;
-    overflow: hidden;
+  #prog-track {
+    height: 2px; background: rgba(192,64,120,0.18);
+    border-radius: 1px; overflow: hidden;
   }
-  #progress-bar-fill {
-    height: 100%;
+  #prog-fill {
+    height: 100%; width: 0%;
     background: linear-gradient(90deg, #f48fb1, #ec407a);
-    border-radius: 1px;
-    width: 0%;
-    transition: width 0.5s ease;
+    border-radius: 1px; transition: width 0.6s ease;
   }
-  #progress-label {
-    margin-top: 8px;
-    text-align: center;
-    font-size: clamp(10px, 1.5vw, 13px);
-    color: rgba(150,40,70,0.4);
-    letter-spacing: 2px;
+  #prog-label {
+    margin-top: 8px; text-align: center;
+    font-size: clamp(10px, 1.4vw, 12px);
+    color: rgba(140,35,70,0.38); letter-spacing: 2px;
   }
 
-  /* 完成画面 */
+  /* ─── 完成画面 ─── */
   #complete {
     position: fixed; inset: 0;
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
-    z-index: 100;
-    opacity: 0;
+    z-index: 100; opacity: 0;
     pointer-events: none;
-    transition: opacity 1.2s ease;
-    background: linear-gradient(160deg, #fce4ec 0%, #f8bbd0 50%, #f48fb1 100%);
+    transition: opacity 1.4s ease;
+    background: linear-gradient(160deg, #fce4ec 0%, #f8bbd0 55%, #f48fb1 100%);
   }
-  #complete.show {
-    opacity: 1;
-    pointer-events: all;
-  }
-  #complete-logo {
-    width: min(40vw, 40vh);
-    opacity: 0.7;
-    margin-bottom: 40px;
-    animation: gentlePulse 3s ease-in-out infinite;
-  }
-  @keyframes gentlePulse {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.05); }
-  }
+  #complete.show { opacity: 1; pointer-events: all; }
   #complete h2 {
-    font-size: clamp(24px, 5vw, 42px);
-    font-weight: 300;
-    color: rgba(150,40,70,0.9);
-    letter-spacing: 6px;
-    margin-bottom: 16px;
+    font-size: clamp(22px, 5vw, 40px); font-weight: 300;
+    color: rgba(140,35,70,0.9); letter-spacing: 8px; margin-bottom: 14px;
   }
   #complete p {
-    font-size: clamp(14px, 2.2vw, 20px);
-    color: rgba(150,40,70,0.6);
-    font-weight: 300;
+    font-size: clamp(13px, 2vw, 19px); color: rgba(140,35,70,0.6);
+    font-weight: 300; text-align: center; line-height: 1.7;
+    max-width: 380px;
   }
-  #complete-close {
-    margin-top: 48px;
-    padding: 12px 40px;
-    border: 1px solid rgba(200,80,120,0.4);
-    border-radius: 30px;
-    background: transparent;
-    color: rgba(150,40,70,0.7);
-    font-size: clamp(13px, 1.8vw, 16px);
-    letter-spacing: 3px;
-    cursor: pointer;
-    font-family: inherit;
-    transition: all 0.3s ease;
+  #complete-logo {
+    width: min(35vw, 35vh); margin-bottom: 36px;
+    animation: gentleBreath 5s ease-in-out infinite;
+    opacity: 0.75;
   }
-  #complete-close:hover {
-    background: rgba(200,80,120,0.1);
-    border-color: rgba(200,80,120,0.6);
+  @keyframes gentleBreath {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.06); }
+  }
+  #complete-btn {
+    margin-top: 44px; padding: 12px 42px;
+    border: 1px solid rgba(192,64,120,0.35);
+    border-radius: 30px; background: transparent;
+    color: rgba(140,35,70,0.7);
+    font-size: clamp(12px, 1.6vw, 15px); letter-spacing: 3px;
+    cursor: pointer; font-family: inherit;
+    transition: background 0.3s, border-color 0.3s;
+  }
+  #complete-btn:hover {
+    background: rgba(192,64,120,0.1);
+    border-color: rgba(192,64,120,0.55);
   }
 </style>
 </head>
 <body>
 
-<div id="bg">
-  <div class="glow glow-1"></div>
-  <div class="glow glow-2"></div>
-  <div class="glow glow-3"></div>
+<div id="bg"></div>
+
+<div id="scene">
+
+  <!-- 放射线层（logo 背后） -->
+  <svg id="rays-svg" viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+    <!-- 线条由 JS 动态生成 -->
+  </svg>
+
+  <!-- Claude Logo -->
+  <svg id="claude-logo" viewBox="0 0 1200 1200" xmlns="http://www.w3.org/2000/svg">
+    <path fill="#c04078"
+      d="M 233.959793 800.214905 L 468.644287 668.536987 L 472.590637 657.100647 L 468.644287 650.738403 L 457.208069 650.738403 L 417.986633 648.322144 L 283.892639 644.69812 L 167.597321 639.865845 L 54.926208 633.825623 L 26.577238 627.785339 L 3.3e-5 592.751709 L 2.73832 575.27533 L 26.577238 559.248352 L 60.724873 562.228149 L 136.187973 567.382629 L 249.422867 575.194763 L 331.570496 580.026978 L 453.261841 592.671082 L 472.590637 592.671082 L 475.328857 584.859009 L 468.724915 580.026978 L 463.570557 575.194763 L 346.389313 495.785217 L 219.543671 411.865906 L 153.100723 363.543762 L 117.181267 339.060425 L 99.060455 316.107361 L 91.248367 266.01355 L 123.865784 230.093994 L 167.677887 233.073853 L 178.872513 236.053772 L 223.248367 270.201477 L 318.040283 343.570496 L 441.825592 434.738342 L 459.946411 449.798706 L 467.194672 444.64447 L 468.080597 441.020203 L 459.946411 427.409485 L 392.617493 305.718323 L 320.778564 181.932983 L 288.80542 130.630859 L 280.348999 99.865845 C 277.369171 87.221436 275.194641 76.590698 275.194641 63.624268 L 312.322174 13.20813 L 332.8591 6.604126 L 382.389313 13.20813 L 403.248352 31.328979 L 434.013519 101.71814 L 483.865753 212.537048 L 561.181274 363.221497 L 583.812134 407.919434 L 595.892639 449.315491 L 600.40271 461.959839 L 608.214783 461.959839 L 608.214783 454.711609 L 614.577271 369.825623 L 626.335632 265.61084 L 637.771851 131.516846 L 641.718201 93.745117 L 660.402832 48.483276 L 697.530334 24.000122 L 726.52356 37.852417 L 750.362549 72 L 747.060486 94.067139 L 732.886047 186.201416 L 705.100708 330.52356 L 686.979919 427.167847 L 697.530334 427.167847 L 709.61084 415.087341 L 758.496704 350.174561 L 840.644348 247.490051 L 876.885925 206.738342 L 919.167847 161.71814 L 946.308838 140.29541 L 997.61084 140.29541 L 1035.38269 196.429626 L 1018.469849 254.416199 L 965.637634 321.422852 L 921.825562 378.201538 L 859.006714 462.765259 L 819.785278 530.41626 L 823.409424 535.812073 L 832.75177 534.92627 L 974.657776 504.724915 L 1051.328979 490.872559 L 1142.818848 475.167786 L 1184.214844 494.496582 L 1188.724854 514.147644 L 1172.456421 554.335693 L 1074.604126 578.496765 L 959.838989 601.449829 L 788.939636 641.879272 L 786.845764 643.409485 L 789.261841 646.389343 L 866.255127 653.637634 L 899.194702 655.409424 L 979.812134 655.409424 L 1129.932861 666.604187 L 1169.154419 692.537109 L 1192.671265 724.268677 L 1188.724854 748.429688 L 1128.322144 779.194641 L 1046.818848 759.865845 L 856.590759 714.604126 L 791.355774 698.335754 L 782.335693 698.335754 L 782.335693 703.731567 L 836.69812 756.885986 L 936.322205 846.845581 L 1061.073975 962.81897 L 1067.436279 991.490112 L 1051.409424 1014.120911 L 1034.496704 1011.704712 L 924.885986 929.234924 L 882.604126 892.107544 L 786.845764 811.48999 L 780.483276 811.48999 L 780.483276 819.946289 L 802.550415 852.241699 L 919.087341 1027.409424 L 925.127625 1081.127686 L 916.671204 1098.604126 L 886.469849 1109.154419 L 853.288696 1103.114136 L 785.073914 1007.355835 L 714.684631 899.516785 L 657.906067 802.872498 L 650.979858 806.81897 L 617.476624 1167.704834 L 601.771851 1186.147705 L 565.530212 1200 L 535.328857 1177.046997 L 519.302124 1139.919556 L 535.328857 1066.550537 L 554.657776 970.792053 L 570.362488 894.68457 L 584.536926 800.134277 L 592.993347 768.724976 L 592.429626 766.630859 L 585.503479 767.516968 L 514.22821 865.369263 L 405.825531 1011.865906 L 320.053711 1103.677979 L 299.516815 1111.812256 L 263.919525 1093.369263 L 267.221497 1060.429688 L 287.114136 1031.114136 L 405.825531 880.107361 L 477.422913 786.52356 L 523.651062 732.483276 L 523.328918 724.671265 L 520.590698 724.671265 L 205.288605 929.395935 L 149.154434 936.644409 L 124.993355 914.01355 L 127.973183 876.885986 L 139.409409 864.80542 L 234.201385 799.570435 L 233.879227 799.8927 Z"/>
+  </svg>
 </div>
 
-<div id="app">
-  <!-- 标题 -->
-  <div id="header">
-    <h1>呼吸引导</h1>
-    <div id="cycle-counter">第 <span id="current-cycle">0</span> / <span id="total-cycle">20</span> 组</div>
-  </div>
-
-  <!-- 外圈 -->
-  <div id="halo"></div>
-
-  <!-- Logo -->
-  <div id="logo-wrap">
-    <!-- 进度环 SVG -->
-    <svg id="progress-ring" viewBox="0 0 200 200">
-      <circle class="track" cx="100" cy="100" r="96"/>
-      <circle class="fill" id="ring-fill" cx="100" cy="100" r="96"
-        stroke-dasharray="603" stroke-dashoffset="603"/>
-    </svg>
-
-    <!-- Claude Logo SVG -->
-    <svg id="claude-logo" viewBox="0 0 1200 1200" xmlns="http://www.w3.org/2000/svg">
-      <g id="g314">
-        <path id="path147" fill="#c04078" stroke="none"
-          d="M 233.959793 800.214905 L 468.644287 668.536987 L 472.590637 657.100647 L 468.644287 650.738403 L 457.208069 650.738403 L 417.986633 648.322144 L 283.892639 644.69812 L 167.597321 639.865845 L 54.926208 633.825623 L 26.577238 627.785339 L 3.3e-5 592.751709 L 2.73832 575.27533 L 26.577238 559.248352 L 60.724873 562.228149 L 136.187973 567.382629 L 249.422867 575.194763 L 331.570496 580.026978 L 453.261841 592.671082 L 472.590637 592.671082 L 475.328857 584.859009 L 468.724915 580.026978 L 463.570557 575.194763 L 346.389313 495.785217 L 219.543671 411.865906 L 153.100723 363.543762 L 117.181267 339.060425 L 99.060455 316.107361 L 91.248367 266.01355 L 123.865784 230.093994 L 167.677887 233.073853 L 178.872513 236.053772 L 223.248367 270.201477 L 318.040283 343.570496 L 441.825592 434.738342 L 459.946411 449.798706 L 467.194672 444.64447 L 468.080597 441.020203 L 459.946411 427.409485 L 392.617493 305.718323 L 320.778564 181.932983 L 288.80542 130.630859 L 280.348999 99.865845 C 277.369171 87.221436 275.194641 76.590698 275.194641 63.624268 L 312.322174 13.20813 L 332.8591 6.604126 L 382.389313 13.20813 L 403.248352 31.328979 L 434.013519 101.71814 L 483.865753 212.537048 L 561.181274 363.221497 L 583.812134 407.919434 L 595.892639 449.315491 L 600.40271 461.959839 L 608.214783 461.959839 L 608.214783 454.711609 L 614.577271 369.825623 L 626.335632 265.61084 L 637.771851 131.516846 L 641.718201 93.745117 L 660.402832 48.483276 L 697.530334 24.000122 L 726.52356 37.852417 L 750.362549 72 L 747.060486 94.067139 L 732.886047 186.201416 L 705.100708 330.52356 L 686.979919 427.167847 L 697.530334 427.167847 L 709.61084 415.087341 L 758.496704 350.174561 L 840.644348 247.490051 L 876.885925 206.738342 L 919.167847 161.71814 L 946.308838 140.29541 L 997.61084 140.29541 L 1035.38269 196.429626 L 1018.469849 254.416199 L 965.637634 321.422852 L 921.825562 378.201538 L 859.006714 462.765259 L 819.785278 530.41626 L 823.409424 535.812073 L 832.75177 534.92627 L 974.657776 504.724915 L 1051.328979 490.872559 L 1142.818848 475.167786 L 1184.214844 494.496582 L 1188.724854 514.147644 L 1172.456421 554.335693 L 1074.604126 578.496765 L 959.838989 601.449829 L 788.939636 641.879272 L 786.845764 643.409485 L 789.261841 646.389343 L 866.255127 653.637634 L 899.194702 655.409424 L 979.812134 655.409424 L 1129.932861 666.604187 L 1169.154419 692.537109 L 1192.671265 724.268677 L 1188.724854 748.429688 L 1128.322144 779.194641 L 1046.818848 759.865845 L 856.590759 714.604126 L 791.355774 698.335754 L 782.335693 698.335754 L 782.335693 703.731567 L 836.69812 756.885986 L 936.322205 846.845581 L 1061.073975 962.81897 L 1067.436279 991.490112 L 1051.409424 1014.120911 L 1034.496704 1011.704712 L 924.885986 929.234924 L 882.604126 892.107544 L 786.845764 811.48999 L 780.483276 811.48999 L 780.483276 819.946289 L 802.550415 852.241699 L 919.087341 1027.409424 L 925.127625 1081.127686 L 916.671204 1098.604126 L 886.469849 1109.154419 L 853.288696 1103.114136 L 785.073914 1007.355835 L 714.684631 899.516785 L 657.906067 802.872498 L 650.979858 806.81897 L 617.476624 1167.704834 L 601.771851 1186.147705 L 565.530212 1200 L 535.328857 1177.046997 L 519.302124 1139.919556 L 535.328857 1066.550537 L 554.657776 970.792053 L 570.362488 894.68457 L 584.536926 800.134277 L 592.993347 768.724976 L 592.429626 766.630859 L 585.503479 767.516968 L 514.22821 865.369263 L 405.825531 1011.865906 L 320.053711 1103.677979 L 299.516815 1111.812256 L 263.919525 1093.369263 L 267.221497 1060.429688 L 287.114136 1031.114136 L 405.825531 880.107361 L 477.422913 786.52356 L 523.651062 732.483276 L 523.328918 724.671265 L 520.590698 724.671265 L 205.288605 929.395935 L 149.154434 936.644409 L 124.993355 914.01355 L 127.973183 876.885986 L 139.409409 864.80542 L 234.201385 799.570435 L 233.879227 799.8927 Z"/>
-      </g>
-    </svg>
-  </div>
-
-  <!-- 文字提示 -->
-  <div id="main-text">
-    <div id="phase-label">准备开始...</div>
-    <div id="sub-text"></div>
-  </div>
-
-  <!-- 屏息倒计时 -->
-  <div id="countdown"></div>
-
-  <!-- 文案池 -->
-  <div id="quip">
-    <div id="quip-text"></div>
-  </div>
-
-  <!-- 进度条 -->
-  <div id="progress-bar">
-    <div id="progress-bar-track">
-      <div id="progress-bar-fill"></div>
-    </div>
-    <div id="progress-label">深呼吸进度</div>
-  </div>
+<!-- 顶部 -->
+<div id="header">
+  <h1>呼吸引导</h1>
+  <div id="cycle-counter">第 <span id="cur">0</span> / <span id="tot">20</span> 组</div>
 </div>
 
-<!-- 完成画面 -->
+<!-- 文字 -->
+<div id="main-text">
+  <div id="phase-label">准备开始...</div>
+  <div id="sub-label"></div>
+</div>
+<div id="countdown"></div>
+
+<!-- 文案 -->
+<div id="quip"><div id="quip-text"></div></div>
+
+<!-- 进度 -->
+<div id="prog">
+  <div id="prog-track"><div id="prog-fill"></div></div>
+  <div id="prog-label">深呼吸进度</div>
+</div>
+
+<!-- 完成 -->
 <div id="complete">
-  <svg id="complete-logo" viewBox="0 0 1200 1200" xmlns="http://www.w3.org/2000/svg">
+  <svg class="complete-logo" viewBox="0 0 1200 1200" xmlns="http://www.w3.org/2000/svg">
     <path fill="#c04078" d="M 233.959793 800.214905 L 468.644287 668.536987 L 472.590637 657.100647 L 468.644287 650.738403 L 457.208069 650.738403 L 417.986633 648.322144 L 283.892639 644.69812 L 167.597321 639.865845 L 54.926208 633.825623 L 26.577238 627.785339 L 3.3e-5 592.751709 L 2.73832 575.27533 L 26.577238 559.248352 L 60.724873 562.228149 L 136.187973 567.382629 L 249.422867 575.194763 L 331.570496 580.026978 L 453.261841 592.671082 L 472.590637 592.671082 L 475.328857 584.859009 L 468.724915 580.026978 L 463.570557 575.194763 L 346.389313 495.785217 L 219.543671 411.865906 L 153.100723 363.543762 L 117.181267 339.060425 L 99.060455 316.107361 L 91.248367 266.01355 L 123.865784 230.093994 L 167.677887 233.073853 L 178.872513 236.053772 L 223.248367 270.201477 L 318.040283 343.570496 L 441.825592 434.738342 L 459.946411 449.798706 L 467.194672 444.64447 L 468.080597 441.020203 L 459.946411 427.409485 L 392.617493 305.718323 L 320.778564 181.932983 L 288.80542 130.630859 L 280.348999 99.865845 C 277.369171 87.221436 275.194641 76.590698 275.194641 63.624268 L 312.322174 13.20813 L 332.8591 6.604126 L 382.389313 13.20813 L 403.248352 31.328979 L 434.013519 101.71814 L 483.865753 212.537048 L 561.181274 363.221497 L 583.812134 407.919434 L 595.892639 449.315491 L 600.40271 461.959839 L 608.214783 461.959839 L 608.214783 454.711609 L 614.577271 369.825623 L 626.335632 265.61084 L 637.771851 131.516846 L 641.718201 93.745117 L 660.402832 48.483276 L 697.530334 24.000122 L 726.52356 37.852417 L 750.362549 72 L 747.060486 94.067139 L 732.886047 186.201416 L 705.100708 330.52356 L 686.979919 427.167847 L 697.530334 427.167847 L 709.61084 415.087341 L 758.496704 350.174561 L 840.644348 247.490051 L 876.885925 206.738342 L 919.167847 161.71814 L 946.308838 140.29541 L 997.61084 140.29541 L 1035.38269 196.429626 L 1018.469849 254.416199 L 965.637634 321.422852 L 921.825562 378.201538 L 859.006714 462.765259 L 819.785278 530.41626 L 823.409424 535.812073 L 832.75177 534.92627 L 974.657776 504.724915 L 1051.328979 490.872559 L 1142.818848 475.167786 L 1184.214844 494.496582 L 1188.724854 514.147644 L 1172.456421 554.335693 L 1074.604126 578.496765 L 959.838989 601.449829 L 788.939636 641.879272 L 786.845764 643.409485 L 789.261841 646.389343 L 866.255127 653.637634 L 899.194702 655.409424 L 979.812134 655.409424 L 1129.932861 666.604187 L 1169.154419 692.537109 L 1192.671265 724.268677 L 1188.724854 748.429688 L 1128.322144 779.194641 L 1046.818848 759.865845 L 856.590759 714.604126 L 791.355774 698.335754 L 782.335693 698.335754 L 782.335693 703.731567 L 836.69812 756.885986 L 936.322205 846.845581 L 1061.073975 962.81897 L 1067.436279 991.490112 L 1051.409424 1014.120911 L 1034.496704 1011.704712 L 924.885986 929.234924 L 882.604126 892.107544 L 786.845764 811.48999 L 780.483276 811.48999 L 780.483276 819.946289 L 802.550415 852.241699 L 919.087341 1027.409424 L 925.127625 1081.127686 L 916.671204 1098.604126 L 886.469849 1109.154419 L 853.288696 1103.114136 L 785.073914 1007.355835 L 714.684631 899.516785 L 657.906067 802.872498 L 650.979858 806.81897 L 617.476624 1167.704834 L 601.771851 1186.147705 L 565.530212 1200 L 535.328857 1177.046997 L 519.302124 1139.919556 L 535.328857 1066.550537 L 554.657776 970.792053 L 570.362488 894.68457 L 584.536926 800.134277 L 592.993347 768.724976 L 592.429626 766.630859 L 585.503479 767.516968 L 514.22821 865.369263 L 405.825531 1011.865906 L 320.053711 1103.677979 L 299.516815 1111.812256 L 263.919525 1093.369263 L 267.221497 1060.429688 L 287.114136 1031.114136 L 405.825531 880.107361 L 477.422913 786.52356 L 523.651062 732.483276 L 523.328918 724.671265 L 520.590698 724.671265 L 205.288605 929.395935 L 149.154434 936.644409 L 124.993355 914.01355 L 127.973183 876.885986 L 139.409409 864.80542 L 234.201385 799.570435 L 233.879227 799.8927 Z"/>
   </svg>
   <h2>完成</h2>
-  <p>20 组呼吸完成，你的身体正在感谢你。</p>
-  <button id="complete-close" onclick="window.close()">关闭</button>
+  <p>20 组呼吸完成，<br>你的身体正在感谢你。</p>
+  <button id="complete-btn" onclick="window.close()">关闭</button>
 </div>
 
 <script>
+// ─── 放射线生成 ───
+// Logo 半径约占 viewBox 40%（从中心到边缘）
+// 放射线从 logo 边缘开始，向外延伸至 viewBox 边缘
+const CX = 200, CY = 200;
+const LOGO_R = 78;   // logo 边缘在 SVG viewBox 中的半径（px）
+const OUTER_R = 195;  // 最长线条端点
+const NUM_RAYS = 24;  // 24 条线，每 15° 一条
+const raysSvg = document.getElementById('rays-svg');
+
+// 生成线条
+const rays = [];
+for (let i = 0; i < NUM_RAYS; i++) {
+  const angle = (i * 360 / NUM_RAYS) * Math.PI / 180;
+  const el = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  el.setAttribute('x1', CX); el.setAttribute('y1', CY);
+  el.setAttribute('x2', CX); el.setAttribute('y2', CY);
+  el.setAttribute('stroke-width', '1.5');
+  el.classList.add('ray');
+  // 加一点随机偏移，让线条起始位置不完全重合
+  const jitterR = LOGO_R + Math.random() * 4 - 2;
+  el._bx = CX + jitterR * Math.cos(angle);
+  el._by = CY + jitterR * Math.sin(angle);
+  el._angle = angle;
+  el._length = OUTER_R - jitterR;
+  raysSvg.appendChild(el);
+  rays.push(el);
+}
+
+// 呼吸状态：0=contracted(呼气末), 1=expanded(吸气末)
+let breathLevel = 0; // 当前进度 0~1
+let animRunning = false;
+
+function setRays(level) {
+  // level: 0 = 最短(收缩), 1 = 最长(展开)
+  rays.forEach((ray, i) => {
+    const delay = (i / NUM_RAYS) * 0.25; // 相位错开，形成波浪感
+    const t = Math.max(0, Math.min(1, level + delay));
+    const len = ray._length * t;
+    const opacity = t * 0.45;
+    const x2 = ray._bx + len * Math.cos(ray._angle);
+    const y2 = ray._by + len * Math.sin(ray._angle);
+    ray.setAttribute('x2', x2);
+    ray.setAttribute('y2', y2);
+    ray.style.stroke = `rgba(192, 64, 120, ${opacity.toFixed(3)})`;
+    ray.style.strokeWidth = `${1 + t * 0.8}px`;
+  });
+}
+
+// 初始：收缩状态
+setRays(0);
+
+// ─── 背景色 ───
+// 浅色 = 吸气(展开)，深色 = 呼气(收缩)
+const BG_LIGHT = '#fce4ec';
+const BG_DEEP  = '#ec407a';
+function setBg(level) {
+  // lerp between deep (0) and light (1)
+  // level 0 -> deep, level 1 -> light
+  // Use HSL interpolation for smooth color transition
+  // bg transition handled by CSS transition, we just change a CSS var
+  const lightness = 92 - level * 18; // 92 (light) to 74 (deep)
+  const sat = 70 + level * 14;       // 70 to 84
+  document.getElementById('bg').style.background =
+    `linear-gradient(160deg, hsl(340,${sat}%,${lightness}%) 0%, hsl(340,${sat+8}%,${lightness-4}%) 100%)`;
+}
+
 // ─── 配置 ───
-const TOTAL_CYCLES = 20;
-const PHASE = {
-  INHALE:    { dur: 4000, scale: 1.0  },
-  HOLD_IN:   { dur: 3000, scale: 1.0  },
-  EXHALE:    { dur: 4000, scale: 0.65 },
-  HOLD_OUT:  { dur: 1000, scale: 0.65 },
+const TOTAL = 20;
+const T = {
+  inhale:   { dur: 4000 },
+  holdIn:   { dur: 3000 },
+  exhale:   { dur: 4000 },
+  holdOut:  { dur: 1000 },
 };
 
-// ─── 瑜伽文案池 ───
+// ─── 文案池 ───
 const QUIPS = [
   "你的前列腺正在感谢你。",
   "把意识轻轻放在你的骨盆底肌上。",
   "感受气体在你的腹腔里流动。",
-  "想象你是一株正在光合作用的植物。",
   "很好，现在假装你在闻一朵花。",
   "把你的尾骨轻轻向上提……对，就是那个感觉。",
   "呼吸是生命给你的免费礼物。",
-  "想象你正在海边，但你不用动。",
+  "想象你是一株正在光合作用的植物。",
   "很好，你的横膈膜在说谢谢。",
   "现在你是一个会呼吸的咖啡杯。",
   "把烦恼呼出去，把平静吸进来。",
   "很好，你的肺正在做它们最擅长的事。",
   "想象你的脊椎是一串正在放松的珍珠。",
   "现在你是一个正在冥想的水母。",
-  "很好，你的肋骨正在优雅地扩张。",
-  "把注意力放在你的耻骨联合处。",
-  "你正在做一个合法的呼吸。",
+  "很好，你的每一次呼吸都在修复你。",
+  "把你的注意力放在你的耻骨联合处。",
+  "你正在解锁「活着」这个成就。",
+  "很好，你的迷走神经被激活了。",
+  "想象你是一棵正在蒸腾作用的树。",
+  "把焦虑呼出去，反正它也不会回来。",
   "很好，你现在是有机呼吸生物。",
-  "感受气息像一只小蛇一样滑入你的身体。",
+  "你不是在摸鱼，你是在正念呼吸。",
+  "感受空气穿过你的鼻毛……很滋养。",
+  "现在你是一个呼吸着的数据包。",
+  "很好，你的含氧量正在悄悄提升。",
   "你正在为你的线粒体充值。",
   "想象你是一块正在午睡的岩石。",
   "很好，你的身体正在下载平静。",
-  "现在你是海洋，深邃而宁静。",
-  "很好，你的每一次呼吸都在修复你。",
-  "你不是在摸鱼，你是在正念呼吸。",
-  "感受空气穿过你的鼻毛……很滋养。",
-  "现在，你是一个呼吸着的数据包。",
-  "很好，你的迷走神经被激活了。",
-  "想象你是一棵正在蒸腾作用的树。",
-  "把焦虑呼出去，它反正也不会回来。",
-  "你正在解锁「活着」这个成就。",
-  "很好，你的含氧量正在悄悄提升。",
-  "现在你是一个有呼吸的烤宽面条。",
-  "你的每一个细胞都在说：终于有人让我休息了。",
-  "很好，你正在正确地活着。",
+  "现在，你是海洋，深邃而宁静。",
   "想象你正在做一个非常合法的瑜伽。",
+  "很好，你正在正确地活着。",
   "你不需要做到完美，呼吸本身就是答案。",
+  "感受气息像一只小蛇一样滑入你的身体。",
+  "你的每一个细胞都在说：终于有人让我休息了。",
+  "很好，你现在是一个正在午休的甜甜圈。",
+  "你不是在发呆，你是在整合信息。",
+  "很好，呼气的时候想象你在倒一杯红酒。",
+  "现在你的身体正在生产血清素。",
+  "想象你的压力像沙子一样从指缝漏下去。",
 ];
 
 // ─── DOM ───
-const logoWrap     = document.getElementById('logo-wrap');
-const phaseLabel   = document.getElementById('phase-label');
-const subText      = document.getElementById('sub-text');
-const countdown    = document.getElementById('countdown');
-const quipText     = document.getElementById('quip-text');
-const currentCycle = document.getElementById('current-cycle');
-const totalCycle   = document.getElementById('total-cycle');
-const progFill     = document.getElementById('progress-bar-fill');
-const ringFill     = document.getElementById('ring-fill');
-const completeEl   = document.getElementById('complete');
+const phaseEl   = document.getElementById('phase-label');
+const subEl     = document.getElementById('sub-label');
+const countEl   = document.getElementById('countdown');
+const quipEl    = document.getElementById('quip-text');
+const curEl     = document.getElementById('cur');
+const totEl     = document.getElementById('tot');
+const progFill  = document.getElementById('prog-fill');
+const compEl    = document.getElementById('complete');
 
-totalCycle.textContent = TOTAL_CYCLES;
-
-const RING_CIRC = 603; // 2π × 96
+totEl.textContent = TOTAL;
 
 // ─── 音效 ───
-let audioCtx = null;
-function getAudio() {
-  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  return audioCtx;
-}
-function playTone(freq, dur, vol = 0.12) {
+let actx = null;
+function ac() { if (!actx) actx = new (window.AudioContext||window.webkitAudioContext)(); return actx; }
+function tone(f, d, v=0.12) {
   try {
-    const ctx = getAudio();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.value = freq;
-    gain.gain.setValueAtTime(vol, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
-    osc.connect(gain); gain.connect(ctx.destination);
-    osc.start(); osc.stop(ctx.currentTime + dur);
+    const ctx = ac(), o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sine'; o.frequency.value = f;
+    g.gain.setValueAtTime(v, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + d);
+    o.connect(g); g.connect(ctx.destination);
+    o.start(); o.stop(ctx.currentTime + d);
   } catch(e) {}
 }
 
-// ─── 进度更新 ───
-function setProgress(cycle, phase, phaseProgress) {
-  const total = (cycle - 1) / TOTAL_CYCLES;
-  const phaseWeight = { inhale: 0.35, hold_in: 0.15, exhale: 0.45, hold_out: 0.05 };
-  const phaseName = { inhale: 'inhale', hold_in: 'hold_in', exhale: 'exhale', hold_out: 'hold_out' }[phase];
-  const w = phaseWeight[phaseName] || 0;
-  progFill.style.width = `${Math.round((total + w * phaseProgress) * 100)}%`;
-  ringFill.style.strokeDashoffset = RING_CIRC * (1 - (total + w * phaseProgress));
-}
-
-// ─── 相位切换 ───
-function setPhaseUI(label, sub = '', count = null) {
-  phaseLabel.style.opacity = '0';
+// ─── 文字 ───
+function setText(main, sub='') {
+  phaseEl.style.opacity = '0';
+  subEl.style.opacity = '0';
   setTimeout(() => {
-    phaseLabel.textContent = label;
-    subText.textContent = sub;
-    phaseLabel.style.opacity = '1';
-    subText.style.opacity = sub ? '1' : '0';
-  }, 300);
-  countdown.style.opacity = count !== null ? '1' : '0';
-  countdown.textContent = count !== null ? String(count) : '';
+    phaseEl.textContent = main;
+    subEl.textContent = sub;
+    phaseEl.style.opacity = '1';
+    subEl.style.opacity = sub ? '1' : '0';
+  }, 280);
 }
 
-// ─── 缩放动画 ───
-function setScale(scale, dur) {
-  logoWrap.style.transition = `transform ${dur}ms cubic-bezier(0.45,0.05,0.55,0.95)`;
-  logoWrap.style.transform = `scale(${scale})`;
-}
+// ─── 呼吸动画（线性插值射线） ───
+let breatheTimer = null;
+let quipTimer = null;
+let holdCountTimer = null;
+let cycleCount = 0;
 
-// ─── 文案池 ───
-let quipVisible = false;
-function showQuip(cycle) {
-  if (cycle < 3) return; // 前两轮不插文案
-  if (quipVisible) {
-    quipText.classList.remove('visible');
-    quipVisible = false;
-  }
-  // 40% 概率插一条
-  if (Math.random() < 0.4) {
-    const text = QUIPS[Math.floor(Math.random() * QUIPS.length)];
-    quipText.textContent = text;
-    quipText.classList.add('visible');
-    quipVisible = true;
-    // 3 秒后消失
-    setTimeout(() => {
-      quipText.classList.remove('visible');
-      quipVisible = false;
-    }, 3200);
-  }
-}
-
-// ─── 屏息倒计时 ───
-function countdownHold(sec) {
-  let n = sec;
-  countdown.textContent = n;
-  countdown.style.opacity = '1';
-  const iv = setInterval(() => {
-    n--;
-    if (n <= 0) {
-      clearInterval(iv);
-      countdown.style.opacity = '0';
-    } else {
-      countdown.textContent = n;
-      playTone(440, 0.15, 0.08);
-    }
-  }, 1000);
-  playTone(440, 0.15, 0.08); // 首秒
-}
-
-// ─── 进度动画 ───
-let animFrame = null;
-function animateProgress(phase, dur, cycle) {
+function animateRays(targetLevel, dur) {
   const start = performance.now();
+  const startLevel = breathLevel;
   function tick(now) {
     const t = Math.min((now - start) / dur, 1);
-    setProgress(cycle, phase, t);
-    if (t < 1) animFrame = requestAnimationFrame(tick);
+    // ease in-out
+    const et = t < 0.5 ? 2*t*t : -1+(4-2*t)*t;
+    breathLevel = startLevel + (targetLevel - startLevel) * et;
+    setRays(breathLevel);
+    setBg(breathLevel);
+    // progress bar
+    const pct = ((cycleCount - 1) / TOTAL + breathLevel / TOTAL) * 100;
+    progFill.style.width = pct.toFixed(1) + '%';
+    if (t < 1) breatheTimer = requestAnimationFrame(tick);
   }
-  if (animFrame) cancelAnimationFrame(animFrame);
-  animFrame = requestAnimationFrame(tick);
+  if (breatheTimer) cancelAnimationFrame(breatheTimer);
+  breatheTimer = requestAnimationFrame(tick);
+}
+
+// 屏息倒计时
+function holdCountdown(sec) {
+  let n = sec;
+  countEl.style.opacity = '1';
+  countEl.textContent = n;
+  tone(440, 0.12, 0.09);
+  holdCountTimer = setInterval(() => {
+    n--;
+    if (n <= 0) {
+      clearInterval(holdCountTimer);
+      countEl.style.opacity = '0';
+    } else {
+      countEl.textContent = n;
+      tone(440, 0.12, 0.09);
+    }
+  }, 1000);
+}
+
+// 文案
+function maybeQuip(c) {
+  if (c < 3) return;
+  if (quipTimer) clearTimeout(quipTimer);
+  if (quipEl.classList.contains('visible')) {
+    quipEl.classList.remove('visible');
+    setTimeout(() => showQuip(c), 400);
+  } else {
+    showQuip(c);
+  }
+}
+function showQuip(c) {
+  if (Math.random() < 0.38) {
+    quipEl.textContent = QUIPS[Math.floor(Math.random() * QUIPS.length)];
+    quipEl.classList.add('visible');
+    quipTimer = setTimeout(() => quipEl.classList.remove('visible'), 3500);
+  }
 }
 
 // ─── 主循环 ───
-let cycle = 0;
+function breatheCycle() {
+  if (cycleCount >= TOTAL) { showComplete(); return; }
+  cycleCount++;
+  curEl.textContent = cycleCount;
 
-function breathe() {
-  if (cycle >= TOTAL_CYCLES) {
-    showComplete(); return;
-  }
-  cycle++;
-  currentCycle.textContent = cycle;
+  const { inhale: i, holdIn: h, exhale: e, holdOut: o } = T;
+  const total = i.dur + h.dur + e.dur + o.dur;
 
-  const p = PHASE;
+  // — 吸气 —
+  setText('缓缓吸气……', '让气息沉入腹部');
+  tone(280, 0.5, 0.05);
+  animateRays(1.0, i.dur);
+  // 文案概率触发
+  setTimeout(() => maybeQuip(cycleCount), i.dur * 0.55);
 
-  // ── 吸气 ──
-  setPhaseUI('缓缓吸气……', '让气息沉入腹部', null);
-  setScale(p.INHALE.scale, p.INHALE.dur);
-  animateProgress('inhale', p.INHALE.dur, cycle);
-  playTone(300, 0.6, 0.06);
-
-  // ── 吸气末提示文案 ──
-  setTimeout(() => showQuip(cycle), p.INHALE.dur * 0.6);
-
-  // ── 屏息 ──
-  const holdStart = p.INHALE.dur;
+  // — 屏息 —
   setTimeout(() => {
-    setPhaseUI('屏住呼吸……', '保持不动，感受气息在身体里', null);
-    countdownHold(3);
-    animateProgress('hold_in', p.HOLD_IN.dur, cycle);
-  }, holdStart);
+    setText('屏住呼吸……', '保持不动');
+    holdCountdown(3);
+  }, i.dur);
 
-  // ── 呼气 ──
-  const exhaleStart = holdStart + p.HOLD_IN.dur;
+  // — 呼气 —
   setTimeout(() => {
-    setPhaseUI('缓缓放松……', '让气息自然流出', null);
-    setScale(p.EXHALE.scale, p.EXHALE.dur);
-    animateProgress('exhale', p.EXHALE.dur, cycle);
-    playTone(260, 0.6, 0.06);
-  }, exhaleStart);
+    countEl.style.opacity = '0';
+    if (holdCountTimer) clearInterval(holdCountTimer);
+    setText('缓缓放松……', '让气息自然流出');
+    tone(250, 0.5, 0.05);
+    animateRays(0, e.dur);
+  }, i.dur + h.dur);
 
-  // ── 短暂屏息（底部） ──
-  const holdOutStart = exhaleStart + p.EXHALE.dur;
+  // — 底部短暂停留 —
   setTimeout(() => {
-    setPhaseUI('轻轻停留', '', null);
-    animateProgress('hold_out', p.HOLD_OUT.dur, cycle);
-  }, holdOutStart);
+    setText('轻轻停留', '');
+  }, i.dur + h.dur + e.dur);
 
-  // ── 下一轮 ──
-  const nextStart = holdOutStart + p.HOLD_OUT.dur;
-  setTimeout(breathe, nextStart);
+  // — 下一轮 —
+  setTimeout(breatheCycle, total);
 }
 
 // ─── 完成 ───
 function showComplete() {
-  setPhaseUI('', '');
-  quipText.classList.remove('visible');
-  playTone(523, 0.8, 0.15);
-  playTone(659, 1.0, 0.15);
-  playTone(784, 1.2, 0.15);
-  setTimeout(() => completeEl.classList.add('show'), 800);
-  // 通知主应用
-  fetch('http://localhost:3721/api/scene-complete', { method: 'POST' }).catch(() => {});
+  setText('', '');
+  quipEl.classList.remove('visible');
+  tone(523, 0.9, 0.14);
+  setTimeout(() => tone(659, 1.0, 0.14), 250);
+  setTimeout(() => tone(784, 1.3, 0.14), 500);
+  setTimeout(() => compEl.classList.add('show'), 900);
+  fetch('http://localhost:3721/api/scene-complete', {method:'POST'}).catch(()=>{});
 }
 
-// ─── 启动 ───
-setTimeout(breathe, 1800);
+// 3秒后开始
+setTimeout(breatheCycle, 3000);
 </script>
 </body>
 </html>
