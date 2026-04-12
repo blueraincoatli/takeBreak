@@ -127,6 +127,12 @@ async function showRandomScene(sceneName) {
     console.log(`[TakeBreak] Screenshot failed: ${e.message}`);
   }
 
+  // Close previous scene window if any
+  if (currentWindow && !currentWindow.isDestroyed()) {
+    currentWindow.close();
+    currentWindow = null;
+  }
+
   currentWindow = new BrowserWindow({
     fullscreen: true,
     kiosk: true,
@@ -140,7 +146,7 @@ async function showRandomScene(sceneName) {
     }
   });
 
-  currentWindow.loadURL(`http://localhost:${PORT}/scenes/${sceneName}/index.html`);
+  currentWindow.loadURL(`http://localhost:${PORT}/scenes/${sceneName}/index.html?t=${Date.now()}`);
 
   currentWindow.once('ready-to-show', () => {
     currentWindow.show();
@@ -202,7 +208,7 @@ const server = http.createServer((req, res) => {
 
   // GET /scenes/* — serve scene files (index.html + assets)
   if (req.method === 'GET' && req.url.startsWith('/scenes/')) {
-    const sceneFile = req.url.slice('/scenes/'.length);
+    const sceneFile = req.url.slice('/scenes/'.length).split('?')[0];
     const sceneFilePath = path.join(__dirname, 'scenes', sceneFile);
     const resolved = path.resolve(sceneFilePath);
     if (!resolved.startsWith(path.resolve(path.join(__dirname, 'scenes')))) {
@@ -228,6 +234,7 @@ const server = http.createServer((req, res) => {
     };
     res.setHeader('Content-Type', mimeTypes[ext] || 'application/octet-stream');
     res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     fs.createReadStream(resolved).pipe(res);
     return;
   }

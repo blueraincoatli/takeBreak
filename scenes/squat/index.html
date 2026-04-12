@@ -16,29 +16,19 @@
     }
 
     .bg-screenshot {
-      position: fixed;
-      top: 0; left: 0;
-      width: 100vw; height: 100vh;
-      background: #000 no-repeat center center;
-      background-size: 100vw 100vh;
-      z-index: 0;
+      display: none;
     }
 
     .scene-layer {
       position: fixed;
       top: 0; left: 0;
       width: 100vw; height: 100vh;
-      z-index: 10000;
+      z-index: 10003;
+      pointer-events: none;
     }
 
     #video {
-      position: fixed;
-      top: 0; left: 0;
-      width: 100vw; height: 100vh;
-      object-fit: cover;
-      transform: scaleX(-1);
-      z-index: 10001;
-      opacity: 0;
+      display: none;
     }
 
     #canvas {
@@ -266,7 +256,7 @@
 
   <div class="scene-layer">
     <div class="top-banner">
-      <span class="top-banner-icon">🏋️</span>
+      <span class="top-banner-icon"></span>
       <span class="top-banner-text">休息一下！做几个深蹲</span>
     </div>
 
@@ -285,7 +275,7 @@
 
     <div class="complete-overlay" id="completeOverlay">
       <div class="complete-card">
-        <div class="complete-icon">🎉</div>
+        <div class="complete-icon">OK</div>
         <div class="complete-title" id="completeTitle">完成！</div>
         <div class="complete-subtitle" id="completeSubtitle">太棒了！休息结束</div>
       </div>
@@ -363,6 +353,26 @@
     let completed = false;
 
     // ============================================================
+    // EMA smoothing for body landmarks (reduces jitter)
+    // ============================================================
+    let smoothedPose = null;
+    const SMOOTH_ALPHA = 0.4; // 0=freeze, 1=no smoothing
+
+    function smoothPoseLandmarks(raw) {
+      if (!smoothedPose || smoothedPose.length !== raw.length) {
+        smoothedPose = raw.map(p => ({ x: p.x, y: p.y, z: p.z, visibility: p.visibility }));
+        return smoothedPose;
+      }
+      for (let i = 0; i < raw.length; i++) {
+        smoothedPose[i].x = SMOOTH_ALPHA * raw[i].x + (1 - SMOOTH_ALPHA) * smoothedPose[i].x;
+        smoothedPose[i].y = SMOOTH_ALPHA * raw[i].y + (1 - SMOOTH_ALPHA) * smoothedPose[i].y;
+        smoothedPose[i].z = SMOOTH_ALPHA * raw[i].z + (1 - SMOOTH_ALPHA) * smoothedPose[i].z;
+        smoothedPose[i].visibility = raw[i].visibility; // don't smooth visibility
+      }
+      return smoothedPose;
+    }
+
+    // ============================================================
     // DOM refs
     // ============================================================
     const video = document.getElementById('video');
@@ -414,71 +424,170 @@
     }
 
     // ============================================================
-    // Drawing helpers (same style as test-full-body.html)
+    // Coordinate mapping: cover-mode scaling
+    // MediaPipe landmarks are normalized [0,1] to video (640x480).
+    // We draw the video with "cover" to fill the canvas, so landmarks
+    // must be mapped with the same scale + offset.
     // ============================================================
-    const w = () => canvas.width;
-    const h = () => canvas.height;
-    function mx(x) { return w() - x * w(); }
-    function my(y) { return y * h(); }
+    function getCoverParams() {
+      const vw = video.videoWidth || 640;
+      const vh = video.videoHeight || 480;
+      const cw = canvas.width;
+      const ch = canvas.height;
+      const videoAspect = vw / vh;
+      const canvasAspect = cw / ch;
+      let drawW, drawH, offsetX, offsetY;
+      if (canvasAspect > videoAspect) {
+        // Canvas is wider -> fit width, crop top/bottom
+        drawW = cw;
+        drawH = cw / videoAspect;
+        offsetX = 0;
+        offsetY = (ch - drawH) / 2;
+      } else {
+        // Canvas is taller -> fit height, crop left/right
+        drawH = ch;
+        drawW = ch * videoAspect;
+        offsetX = (cw - drawW) / 2;
+        offsetY = 0;
+      }
+      return { drawW, drawH, offsetX, offsetY };
+    }
+
+    // 缓存 cover 参数，确保每帧计算一致
+    let currentCoverParams = null;
+    function updateCoverParams() {
+      currentCoverParams = getCoverParams();
+    }
+    function mx(x) {
+      if (!currentCoverParams) updateCoverParams();
+      return canvas.width - (currentCoverParams.offsetX + x * currentCoverParams.drawW); // mirror
+    }
+    function my(y) {
+      if (!currentCoverParams) updateCoverParams();
+      return currentCoverParams.offsetY + y * currentCoverParams.drawH;
+    }
 
     function getPt(lm, i, threshold) {
-      const t = threshold || 0.3;
-      return lm[i] && lm[i].visibility >= t ? lm[i] : null;
+      const t = threshold !== undefined ? threshold : 0.3;
+      // 如果没有 visibility 字段，只要有坐标就返回（兼容不同版本 MediaPipe）
+      if (!lm[i]) return null;
+      if (lm[i].visibility === undefined) return lm[i];
+      return lm[i].visibility >= t ? lm[i] : null;
     }
 
     // ============================================================
-    // Draw body (torso + arms + legs) - visible fills
+    // Draw body (rounded trapezoids: chest + pelvis + arms + legs)
     // ============================================================
+    function roundedQuad(pts, r) {
+      const n = pts.length;
+      ctx.beginPath();
+      ctx.moveTo((pts[0][0]+pts[1][0])/2, (pts[0][1]+pts[1][1])/2);
+      for (let i = 1; i <= n; i++) {
+        const curr = pts[i % n];
+        const next = pts[(i+1) % n];
+        ctx.arcTo(curr[0], curr[1], next[0], next[1], r);
+      }
+      ctx.closePath();
+    }
+
     function drawBody(lm) {
-      const ls = getPt(lm, 11), rs = getPt(lm, 12);
-      const lh = getPt(lm, 23), rh = getPt(lm, 24);
-      if (!ls || !rs) return;
+      // 降低 visibility 阈值到 0.05，确保更多帧能绘制出身体
+      const ls = getPt(lm, 11, 0.05), rs = getPt(lm, 12, 0.05);
+      const lh = getPt(lm, 23, 0.05), rh = getPt(lm, 24, 0.05);
+      if (!ls || !rs) {
+        console.log(' shoulders not detected, ls:', ls, 'rs:', rs);
+        return;
+      }
 
       const sw = Math.abs(mx(rs.x) - mx(ls.x));
 
-      // Torso (trapezoid)
+      // Torso split: chest + pelvis
       if (lh && rh) {
+        const t = 0.58;
+        const wLY = my(ls.y + (lh.y - ls.y) * t);
+        const wLX = mx(ls.x + (lh.x - ls.x) * t);
+        const wRY = my(rs.y + (rh.y - rs.y) * t);
+        const wRX = mx(rs.x + (rh.x - rs.x) * t);
+        const waistPinch = sw * 0.04;
+        const pelvisDrop = sw * 0.08;
+
+        // Shoulder: narrow + inverted-V collarbone triangle
+        const shoulderNarrow = sw * 0.02;
+        const lsX = mx(ls.x) - shoulderNarrow;
+        const rsX = mx(rs.x) + shoulderNarrow;
+        const lsY = my(ls.y);
+        const rsY = my(rs.y);
+        // Collarbone peak: midpoint between shoulders, raised up
+        const collarMidX = (lsX + rsX) / 2;
+        const collarMidY = (lsY + rsY) / 2 - sw * 0.18;
+
+        // Collarbone triangle (inverted V on top of chest)
         ctx.beginPath();
-        ctx.moveTo(mx(ls.x) - sw*0.15, my(ls.y));
-        ctx.lineTo(mx(rs.x) + sw*0.15, my(rs.y));
-        ctx.lineTo(mx(rh.x) + sw*0.10, my(rh.y));
-        ctx.lineTo(mx(lh.x) - sw*0.10, my(lh.y));
+        ctx.moveTo(lsX, lsY);
+        ctx.quadraticCurveTo(collarMidX, collarMidY, rsX, rsY);
+        ctx.lineTo(lsX, lsY);
         ctx.closePath();
-        ctx.fillStyle = 'rgba(0,255,136,0.25)';
+        ctx.fillStyle = 'rgba(0,255,136,0.15)';
         ctx.fill();
-        ctx.strokeStyle = 'rgba(0,255,136,0.6)';
+        ctx.strokeStyle = 'rgba(0,255,136,0.45)';
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+
+        // Chest (ribcage) - top edge follows collarbone curve
+        ctx.beginPath();
+        ctx.moveTo(lsX, lsY);
+        ctx.quadraticCurveTo(collarMidX, collarMidY, rsX, rsY);
+        ctx.lineTo(wRX + waistPinch, wRY);
+        ctx.lineTo(wLX - waistPinch, wLY);
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(0,255,136,0.15)';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(0,255,136,0.45)';
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+
+        // Pelvis
+        ctx.beginPath();
+        ctx.moveTo(wLX - waistPinch, wLY);
+        ctx.lineTo(wRX + waistPinch, wRY);
+        ctx.lineTo(mx(rh.x) + sw*0.10, my(rh.y) + pelvisDrop);
+        ctx.lineTo(mx(lh.x) - sw*0.10, my(lh.y) + pelvisDrop);
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(0,255,136,0.12)';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(0,255,136,0.40)';
         ctx.lineWidth = 2.5;
         ctx.stroke();
       }
 
-      // Arms
+      // Arms - simple quads
       function drawArm(si, ei, wi, dir) {
-        const s = getPt(lm, si), e = getPt(lm, ei), wrist = getPt(lm, wi);
+        const s = getPt(lm, si, 0.05), e = getPt(lm, ei, 0.05), wrist = getPt(lm, wi, 0.05);
         if (!s || !e) return;
-        const aw = sw*0.12, ww = aw*0.55;
+        const aw = sw*0.10, ww = aw*0.6;
         // Upper arm
         ctx.beginPath();
         ctx.moveTo(mx(s.x)-dir*aw, my(s.y));
         ctx.lineTo(mx(s.x)+dir*aw, my(s.y));
-        ctx.lineTo(mx(e.x)+dir*aw*0.85, my(e.y));
-        ctx.lineTo(mx(e.x)-dir*aw*0.85, my(e.y));
+        ctx.lineTo(mx(e.x)+dir*aw*0.8, my(e.y));
+        ctx.lineTo(mx(e.x)-dir*aw*0.8, my(e.y));
         ctx.closePath();
-        ctx.fillStyle = 'rgba(0,255,136,0.18)';
+        ctx.fillStyle = 'rgba(0,255,136,0.12)';
         ctx.fill();
-        ctx.strokeStyle = 'rgba(0,255,136,0.5)';
+        ctx.strokeStyle = 'rgba(0,255,136,0.40)';
         ctx.lineWidth = 2;
         ctx.stroke();
         // Forearm
         if (wrist) {
           ctx.beginPath();
-          ctx.moveTo(mx(e.x)-dir*aw*0.85, my(e.y));
-          ctx.lineTo(mx(e.x)+dir*aw*0.85, my(e.y));
+          ctx.moveTo(mx(e.x)-dir*aw*0.8, my(e.y));
+          ctx.lineTo(mx(e.x)+dir*aw*0.8, my(e.y));
           ctx.lineTo(mx(wrist.x)+dir*ww, my(wrist.y));
           ctx.lineTo(mx(wrist.x)-dir*ww, my(wrist.y));
           ctx.closePath();
-          ctx.fillStyle = 'rgba(0,255,136,0.18)';
+          ctx.fillStyle = 'rgba(0,255,136,0.12)';
           ctx.fill();
-          ctx.strokeStyle = 'rgba(0,255,136,0.5)';
+          ctx.strokeStyle = 'rgba(0,255,136,0.40)';
           ctx.lineWidth = 2;
           ctx.stroke();
         }
@@ -486,34 +595,34 @@
       drawArm(11, 13, 15, -1);
       drawArm(12, 14, 16,  1);
 
-      // Legs
+      // Legs - simple quads
       function drawLeg(hi, ki, ai, dir) {
-        const hp = getPt(lm, hi), kp = getPt(lm, ki), ap = getPt(lm, ai);
+        const hp = getPt(lm, hi, 0.05), kp = getPt(lm, ki, 0.05), ap = getPt(lm, ai, 0.05);
         if (!hp || !kp) return;
-        const lw = sw*0.15, aw = lw*0.5;
+        const lw = sw*0.15, aw = lw*0.6;
         // Thigh
         ctx.beginPath();
         ctx.moveTo(mx(hp.x)-dir*lw, my(hp.y));
         ctx.lineTo(mx(hp.x)+dir*lw, my(hp.y));
-        ctx.lineTo(mx(kp.x)+dir*lw*0.85, my(kp.y));
-        ctx.lineTo(mx(kp.x)-dir*lw*0.85, my(kp.y));
+        ctx.lineTo(mx(kp.x)+dir*lw*0.8, my(kp.y));
+        ctx.lineTo(mx(kp.x)-dir*lw*0.8, my(kp.y));
         ctx.closePath();
-        ctx.fillStyle = 'rgba(0,255,136,0.18)';
+        ctx.fillStyle = 'rgba(0,255,136,0.12)';
         ctx.fill();
-        ctx.strokeStyle = 'rgba(0,255,136,0.5)';
+        ctx.strokeStyle = 'rgba(0,255,136,0.40)';
         ctx.lineWidth = 2;
         ctx.stroke();
         // Shin
         if (ap) {
           ctx.beginPath();
-          ctx.moveTo(mx(kp.x)-dir*lw*0.85, my(kp.y));
-          ctx.lineTo(mx(kp.x)+dir*lw*0.85, my(kp.y));
+          ctx.moveTo(mx(kp.x)-dir*lw*0.8, my(kp.y));
+          ctx.lineTo(mx(kp.x)+dir*lw*0.8, my(kp.y));
           ctx.lineTo(mx(ap.x)+dir*aw, my(ap.y));
           ctx.lineTo(mx(ap.x)-dir*aw, my(ap.y));
           ctx.closePath();
-          ctx.fillStyle = 'rgba(0,255,136,0.18)';
+          ctx.fillStyle = 'rgba(0,255,136,0.12)';
           ctx.fill();
-          ctx.strokeStyle = 'rgba(0,255,136,0.5)';
+          ctx.strokeStyle = 'rgba(0,255,136,0.40)';
           ctx.lineWidth = 2;
           ctx.stroke();
         }
@@ -526,11 +635,11 @@
     // Draw head (face oval + features from Pose landmarks 0-10)
     // ============================================================
     function drawHead(lm) {
-      const nose = getPt(lm, 0, 0.2);
-      const leye = getPt(lm, 2, 0.2);
-      const reye = getPt(lm, 5, 0.2);
-      const lear = getPt(lm, 7, 0.2);
-      const rear = getPt(lm, 8, 0.2);
+      const nose = getPt(lm, 0, 0.05);
+      const leye = getPt(lm, 2, 0.05);
+      const reye = getPt(lm, 5, 0.05);
+      const lear = getPt(lm, 7, 0.05);
+      const rear = getPt(lm, 8, 0.05);
       if (!nose || (!leye && !reye)) return;
 
       const noseX = mx(nose.x);
@@ -555,13 +664,13 @@
       ctx.fillStyle = 'rgba(0,255,136,0.20)';
       ctx.fill();
       ctx.strokeStyle = 'rgba(0,255,136,0.7)';
-      ctx.lineWidth = 2.5;
+      ctx.lineWidth = 3;
       ctx.stroke();
 
       // Eyes
       const fc = 'rgba(0,255,136,0.8)';
       const ff = 'rgba(0,255,136,0.35)';
-      const eyeR = faceW * 0.12;
+      const eyeR = faceW * 0.14;
 
       if (leye) {
         const ex = mx(leye.x), ey = my(leye.y);
@@ -570,7 +679,7 @@
         ctx.fillStyle = ff;
         ctx.fill();
         ctx.strokeStyle = fc;
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 3;
         ctx.stroke();
         // Pupil
         ctx.beginPath();
@@ -585,7 +694,7 @@
         ctx.fillStyle = ff;
         ctx.fill();
         ctx.strokeStyle = fc;
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 3;
         ctx.stroke();
         // Pupil
         ctx.beginPath();
@@ -595,18 +704,18 @@
       }
 
       // Nose (triangle)
-      const ns = faceW * 0.1;
+      const ns = faceW * 0.12;
       ctx.beginPath();
       ctx.moveTo(noseX, noseY - ns*0.5);
       ctx.lineTo(noseX - ns, noseY + ns);
       ctx.lineTo(noseX + ns, noseY + ns);
       ctx.closePath();
       ctx.strokeStyle = fc;
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 2.5;
       ctx.stroke();
 
       // Mouth (smile curve)
-      const ml = getPt(lm, 9, 0.2), mr = getPt(lm, 10, 0.2);
+      const ml = getPt(lm, 9, 0.05), mr = getPt(lm, 10, 0.05);
       if (ml && mr) {
         const midX = (mx(ml.x) + mx(mr.x)) / 2;
         const midY = (my(ml.y) + my(mr.y)) / 2;
@@ -615,32 +724,74 @@
         ctx.moveTo(mx(ml.x), my(ml.y));
         ctx.quadraticCurveTo(midX, midY + mw*0.35, mx(mr.x), my(mr.y));
         ctx.strokeStyle = fc;
-        ctx.lineWidth = 2.5;
+        ctx.lineWidth = 3;
         ctx.stroke();
       }
 
       // Ears (small arcs)
       if (lear) {
         ctx.beginPath();
-        ctx.arc(mx(lear.x), my(lear.y), faceW*0.06, -0.8, 0.8);
+        ctx.arc(mx(lear.x), my(lear.y), faceW*0.08, -0.8, 0.8);
         ctx.strokeStyle = 'rgba(0,255,136,0.5)';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 2.5;
         ctx.stroke();
       }
       if (rear) {
         ctx.beginPath();
-        ctx.arc(mx(rear.x), my(rear.y), faceW*0.06, Math.PI-0.8, Math.PI+0.8);
+        ctx.arc(mx(rear.x), my(rear.y), faceW*0.08, Math.PI-0.8, Math.PI+0.8);
         ctx.strokeStyle = 'rgba(0,255,136,0.5)';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 2.5;
         ctx.stroke();
       }
+    }
+
+    // ============================================================
+    // Face contour from FaceLandmarker (478 points, IMAGE mode)
+    // ============================================================
+    const FACE_OVAL = [10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109];
+    const LEFT_EYE     = [362,382,381,380,374,373,390,249,263,466,388,387,386,385,384,398];
+    const RIGHT_EYE    = [33,7,163,144,145,153,154,155,133,173,157,158,159,160,161,246];
+    const LEFT_EYEBROW = [276,283,282,295,285];
+    const RIGHT_EYEBROW= [46,53,52,65,55];
+    const UPPER_LIP    = [61,146,91,181,84,17,314,405,321,375,291];
+    const LOWER_LIP    = [61,84,17,314,405,321,375,291,78,95,88,178,87,14,317,402,318,324];
+    const NOSE_BRIDGE  = [168,6,195,197];
+    const NOSE_BOTTOM  = [98,327,4,134,51,306];
+
+    function drawContour(indices, lm, color, fillColor, lineW) {
+      const pts = indices.map(i => lm[i]).filter(p => p && p.x > 0 && p.x < 1);
+      if (pts.length < 2) return;
+      ctx.beginPath();
+      ctx.moveTo(mx(pts[0].x), my(pts[0].y));
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(mx(pts[i].x), my(pts[i].y));
+      if (fillColor) { ctx.fillStyle = fillColor; ctx.fill(); }
+      if (color) {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = lineW || 1.5;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.stroke();
+      }
+    }
+
+    function drawFaceContours(lm) {
+      if (!lm || lm.length < 478) return;
+      drawContour(FACE_OVAL, lm, '#ff69b4', 'rgba(255,105,180,0.10)', 3);
+      drawContour(LEFT_EYEBROW, lm, 'rgba(255,80,120,0.8)', null, 3);
+      drawContour(RIGHT_EYEBROW, lm, 'rgba(255,80,120,0.8)', null, 3);
+      drawContour(LEFT_EYE, lm, '#ff69b4', 'rgba(255,105,180,0.20)', 2.5);
+      drawContour(RIGHT_EYE, lm, '#ff69b4', 'rgba(255,105,180,0.20)', 2.5);
+      drawContour(NOSE_BRIDGE, lm, 'rgba(255,105,180,0.5)', null, 2);
+      drawContour(NOSE_BOTTOM, lm, 'rgba(255,105,180,0.6)', null, 2.5);
+      drawContour(UPPER_LIP, lm, '#ff88aa', 'rgba(255,100,150,0.15)', 2.5);
+      drawContour(LOWER_LIP, lm, '#ff88aa', 'rgba(255,100,150,0.15)', 2.5);
     }
 
     // ============================================================
     // Draw skeleton lines (thin connections over filled shapes)
     // ============================================================
     function drawSkeletonLines(lm) {
-      const V = 0.4;
+      const V = 0.1;  // 降低阈值，确保骨架线能显示
       for (const [a, b] of POSE_CONNECTIONS) {
         const pa = lm[a], pb = lm[b];
         if (!pa || !pb) continue;
@@ -648,89 +799,62 @@
         ctx.beginPath();
         ctx.moveTo(mx(pa.x), my(pa.y));
         ctx.lineTo(mx(pb.x), my(pb.y));
-        ctx.strokeStyle = 'rgba(0,255,136,0.35)';
-        ctx.lineWidth = 2;
+        ctx.strokeStyle = 'rgba(0,255,136,0.40)';
+        ctx.lineWidth = 2.5;
         ctx.stroke();
       }
     }
 
     // ============================================================
-    // Draw hands from Pose landmarks (15-22: wrists + fingertips)
+    // Draw hands (full 21-point from HandLandmarker)
     // ============================================================
-    function drawHands(lm) {
-      // Left hand: 15=wrist, 17=pinky, 19=index, 21=thumb
-      // Right hand: 16=wrist, 18=pinky, 20=index, 22=thumb
-      const V = 0.3;
-      const color = 'rgba(77,166,255,0.7)';
-      const dotColor = '#4da6ff';
+    const FINGER_INDICES = [
+      [0,1,2,3,4],     // thumb
+      [0,5,6,7,8],     // index
+      [0,9,10,11,12],  // middle
+      [0,13,14,15,16], // ring
+      [0,17,18,19,20]  // pinky
+    ];
+    const PALM_INDICES = [0,1,5,9,13,17,0];
 
-      function drawOneHand(wi, pi, ii, ti) {
-        const wrist = lm[wi], pinky = lm[pi], index = lm[ii], thumb = lm[ti];
-        if (!wrist || wrist.visibility < V) return;
-        const wx = mx(wrist.x), wy = my(wrist.y);
+    function drawHandFull(lm) {
+      if (!lm || lm.length < 21) return;
 
-        // Draw wrist dot
+      // Palm outline
+      ctx.beginPath();
+      ctx.moveTo(mx(lm[0].x), my(lm[0].y));
+      for (let i = 1; i < PALM_INDICES.length; i++) {
+        const p = lm[PALM_INDICES[i]];
+        ctx.lineTo(mx(p.x), my(p.y));
+      }
+      ctx.fillStyle = 'rgba(77,166,255,0.18)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(77,166,255,0.6)';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+
+      // Fingers
+      for (const finger of FINGER_INDICES) {
         ctx.beginPath();
-        ctx.arc(wx, wy, 4, 0, Math.PI*2);
-        ctx.fillStyle = dotColor;
-        ctx.fill();
-
-        // Draw lines from wrist to each fingertip
-        const tips = [pinky, index, thumb];
-        for (const tip of tips) {
-          if (!tip || tip.visibility < V) continue;
-          const tx = mx(tip.x), ty = my(tip.y);
-          ctx.beginPath();
-          ctx.moveTo(wx, wy);
-          ctx.lineTo(tx, ty);
-          ctx.strokeStyle = color;
-          ctx.lineWidth = 2;
-          ctx.stroke();
-          // Fingertip dot
-          ctx.beginPath();
-          ctx.arc(tx, ty, 3, 0, Math.PI*2);
-          ctx.fillStyle = dotColor;
-          ctx.fill();
+        ctx.moveTo(mx(lm[finger[0]].x), my(lm[finger[0]].y));
+        for (let i = 1; i < finger.length; i++) {
+          const p = lm[finger[i]];
+          ctx.lineTo(mx(p.x), my(p.y));
         }
+        ctx.strokeStyle = 'rgba(77,166,255,0.6)';
+        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.stroke();
       }
 
-      drawOneHand(15, 17, 19, 21); // Left
-      drawOneHand(16, 18, 20, 22); // Right
-    }
-
-    // ============================================================
-    // Debug: show landmark positions as colored dots
-    // ============================================================
-    function debugLandmarks(lm) {
-      // Draw big dots at key positions to verify coordinate mapping
-      const debugPts = [
-        { idx: 0, color: '#ff0', label: 'nose' },
-        { idx: 2, color: '#ff0', label: 'Leye' },
-        { idx: 5, color: '#ff0', label: 'Reye' },
-        { idx: 7, color: '#ff0', label: 'Lear' },
-        { idx: 8, color: '#ff0', label: 'Rear' },
-        { idx: 9, color: '#ff0', label: 'mouthL' },
-        { idx: 10, color: '#ff0', label: 'mouthR' },
-        { idx: 11, color: '#f00', label: 'Lshou' },
-        { idx: 12, color: '#f00', label: 'Rshou' },
-        { idx: 13, color: '#f80', label: 'Lelb' },
-        { idx: 14, color: '#f80', label: 'Relb' },
-        { idx: 15, color: '#f80', label: 'Lwri' },
-        { idx: 16, color: '#f80', label: 'Rwri' },
-        { idx: 23, color: '#0ff', label: 'Lhip' },
-        { idx: 24, color: '#0ff', label: 'Rhip' },
-      ];
-      for (const dp of debugPts) {
-        const p = lm[dp.idx];
-        if (!p || p.visibility < 0.2) continue;
-        const x = mx(p.x), y = my(p.y);
+      // Knuckle dots
+      for (let i = 1; i < 21; i++) {
+        const p = lm[i];
         ctx.beginPath();
-        ctx.arc(x, y, 6, 0, Math.PI*2);
-        ctx.fillStyle = dp.color;
+        ctx.arc(mx(p.x), my(p.y), i % 4 === 0 ? 5 : 3.5, 0, Math.PI*2);
+        ctx.fillStyle = '#4da6ff';
         ctx.fill();
-        ctx.fillStyle = '#fff';
-        ctx.font = '10px monospace';
-        ctx.fillText(dp.idx + ':' + dp.label + ' v' + p.visibility.toFixed(2), x + 8, y - 8);
       }
     }
 
@@ -799,7 +923,7 @@
             if (currentCount >= TARGET_COUNT) {
               onComplete();
             } else {
-              showFeedback(`第 ${currentCount} 个！💪`, 1500);
+              showFeedback(`第 ${currentCount} 个！`, 1500);
               setTimeout(() => {
                 internalState = 'STANDING';
               }, 500);
@@ -819,7 +943,7 @@
       completed = true;
       completeOverlay.classList.add('show');
       playSuccessSound();
-      showFeedback('太棒了！🎉', 3000);
+      showFeedback('太棒了！', 3000);
 
       // Notify main process via HTTP, then close
       setTimeout(async () => {
@@ -849,26 +973,29 @@
     }
 
     // ============================================================
-    // MediaPipe Pose + Hands
+    // MediaPipe Pose + Face + Hands
     // ============================================================
     let poseLandmarker = null;
+    let faceLandmarker = null;
+    let handLandmarker = null;
 
     async function initMediaPipe() {
       loadingText.textContent = '正在加载动作检测模型...';
 
       try {
-        const { FilesetResolver, PoseLandmarker } = await import(
+        const { FilesetResolver, PoseLandmarker, HandLandmarker, FaceLandmarker } = await import(
           'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/vision_bundle.js'
         );
 
         loadingText.textContent = '加载 Vision 模块...';
 
+        // Shared WASM for Pose + Hand
         const vision = await FilesetResolver.forVisionTasks(
           'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
         );
 
+        // Pose
         loadingText.textContent = '创建 Pose 检测器...';
-
         poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
           baseOptions: {
             modelAssetPath: '/models/pose_landmarker_lite.task',
@@ -880,6 +1007,41 @@
           minPosePresenceConfidence: 0.5,
           minTrackingConfidence: 0.5
         });
+
+        // Hand (shared WASM)
+        loadingText.textContent = '创建 Hand 检测器...';
+        try {
+          handLandmarker = await HandLandmarker.createFromOptions(vision, {
+            baseOptions: {
+              modelAssetPath: '/models/hand_landmarker.task',
+              delegate: 'CPU'
+            },
+            runningMode: 'VIDEO',
+            numHands: 2
+          });
+        } catch(e) {
+          console.warn('[Hand] load failed:', e.message);
+          handLandmarker = null;
+        }
+
+        // Face (separate WASM, IMAGE mode to avoid VIDEO bug)
+        loadingText.textContent = '创建 Face 检测器...';
+        try {
+          const visionForFace = await FilesetResolver.forVisionTasks(
+            'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
+          );
+          faceLandmarker = await FaceLandmarker.createFromOptions(visionForFace, {
+            baseOptions: {
+              modelAssetPath: '/models/face_landmarker.task',
+              delegate: 'CPU'
+            },
+            runningMode: 'IMAGE',
+            numFaces: 1
+          });
+        } catch(e) {
+          console.warn('[Face] load failed, face contours disabled:', e.message);
+          faceLandmarker = null;
+        }
 
         loadingText.textContent = '启动摄像头...';
       } catch (e) {
@@ -918,18 +1080,53 @@
       }
       lastFrameTime = now;
 
+      // Draw mirrored webcam as background (cover mode)
+      const cw = canvas.width, ch = canvas.height;
+      const { drawW, drawH, offsetX, offsetY } = getCoverParams();
+      ctx.clearRect(0, 0, cw, ch);
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, cw, ch);
+      ctx.save();
+      ctx.translate(cw, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(video, -offsetX, offsetY, drawW, drawH);
+      ctx.restore();
+
       if (!completed) {
         try {
-          const results = poseLandmarker.detectForVideo(video, now);
-          if (results.landmarks && results.landmarks.length > 0) {
-            const landmarks = results.landmarks[0];
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            drawBody(landmarks);
-            drawHead(landmarks);
-            drawHands(landmarks);
-            drawSkeletonLines(landmarks);
-            debugLandmarks(landmarks);
-            processSquat(landmarks);
+          // Pose detection (smoothed for drawing, raw for squat)
+          // 更新 cover 参数缓存
+          updateCoverParams();
+          const poses = poseLandmarker.detectForVideo(video, now);
+          if (poses.landmarks && poses.landmarks.length > 0) {
+            const rawLm = poses.landmarks[0];
+            const lm = smoothPoseLandmarks(rawLm);
+            drawBody(lm);
+            // drawHead(lm); // removed: FaceLandmarker already draws face contours
+            drawSkeletonLines(lm);
+            processSquat(rawLm);
+          }
+
+          // Hand detection
+          if (handLandmarker) {
+            const hands = handLandmarker.detectForVideo(video, now);
+            if (hands?.landmarks?.length > 0) {
+              for (const hand of hands.landmarks) {
+                drawHandFull(hand);
+              }
+            }
+          }
+
+          // Face contours (IMAGE mode)
+          if (faceLandmarker) {
+            try {
+              const faces = faceLandmarker.detect(video);
+              if (faces?.faceLandmarks?.length > 0) {
+                drawFaceContours(faces.faceLandmarks[0]);
+              } else if (faces?.landmarks?.length > 0) {
+                drawFaceContours(faces.landmarks[0]);
+              }
+            } catch(_) {}
           }
         } catch(e) {
           console.error('detectLoop error:', e);
