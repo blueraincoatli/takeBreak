@@ -227,12 +227,15 @@
     let targetWaterLevel = 0;
     let frameCount = 0;
     let poseData = null;
+    let headBaseY = null;  // baseline nose.y when head is level
     
     // Config
     const DRINK_TARGET = 2;
     const LEAVE_THRESHOLD = 0.65;
     const RETURN_THRESHOLD = 0.45;
     const DRINK_DIST = 0.30;
+    const HAND_FACE_DIST = 0.22;   // hand-to-face distance threshold (generous)
+    const HEAD_TILT_UP = 0.012;    // how much nose must rise above baseline
     const LEAVE_TIME_MIN = 2500;
     const DRINK_COOLDOWN = 1200;
     
@@ -250,24 +253,68 @@
     // ============================================================
     let gl, program;
     let timeUniform, resolutionUniform, waterLevelUniform;
-    let ballPosUniform; // 12 balls * 3 components = 36 floats
+    let ballsUniformLoc; // uniform vec4 u_balls[46]
     
-    // Pose keypoints (12 balls)
-    let ballPositions = new Float32Array([
-        // Default positions (head, torso, shoulders, elbows, hips)
-        0.0, 0.5, 0.0,      // head
-        0.0, 0.2, 0.1,      // head2
-        0.0, 0.0, 0.0,      // torso1
-        0.0, -0.3, 0.05,    // torso2
-        0.0, -0.6, 0.0,     // torso3
-        0.0, -0.9, 0.0,     // torso4
-        -0.4, 0.1, 0.0,     // l_shoulder
-        0.4, 0.1, 0.0,      // r_shoulder
-        -0.5, -0.2, 0.0,    // l_elbow
-        0.5, -0.2, 0.0,     // r_elbow
-        -0.2, -1.0, 0.0,    // l_hip
-        0.2, -1.0, 0.0      // r_hip
+    // 46 balls: xy=position (0-1 screen space), z=0, w=radius
+    // Upper body only. Arms have 14 balls each with large radii for smooth tubes.
+    const BALL_COUNT = 46;
+    const BALL_DEFAULTS = new Float32Array([
+        // Head (5 balls)
+        0.5, 0.83, 0, 0.060,    // 0:  head top
+        0.46, 0.79, 0, 0.055,   // 1:  head left
+        0.5, 0.79, 0, 0.065,    // 2:  head center
+        0.54, 0.79, 0, 0.055,   // 3:  head right
+        0.5, 0.75, 0, 0.055,    // 4:  jaw
+        // Neck
+        0.5, 0.71, 0, 0.050,    // 5:  neck
+        // Torso (6 balls)
+        0.5, 0.67, 0, 0.080,    // 6:  upper chest bridge
+        0.5, 0.62, 0, 0.130,    // 7:  chest
+        0.5, 0.55, 0, 0.120,    // 8:  mid torso
+        0.5, 0.48, 0, 0.100,    // 9:  abdomen
+        0.5, 0.41, 0, 0.085,    // 10: lower abdomen
+        0.5, 0.36, 0, 0.070,    // 11: hip center
+        // Collarbones
+        0.45, 0.67, 0, 0.060,   // 12: l_collar
+        0.55, 0.67, 0, 0.060,   // 13: r_collar
+        // Left arm (14 balls - very dense for smooth tube)
+        0.40, 0.68, 0, 0.065,   // 14: l_shoulder
+        0.38, 0.64, 0, 0.062,   // 15: l_upper 1/6
+        0.36, 0.60, 0, 0.060,   // 16: l_upper 2/6
+        0.34, 0.56, 0, 0.058,   // 17: l_upper 3/6
+        0.32, 0.52, 0, 0.056,   // 18: l_upper 4/6
+        0.30, 0.48, 0, 0.055,   // 19: l_upper 5/6
+        0.28, 0.44, 0, 0.053,   // 20: l_elbow area
+        0.26, 0.40, 0, 0.050,   // 21: l_forearm 1/4
+        0.25, 0.36, 0, 0.048,   // 22: l_forearm 2/4
+        0.24, 0.32, 0, 0.046,   // 23: l_forearm 3/4
+        0.23, 0.28, 0, 0.044,   // 24: l_wrist area
+        0.22, 0.25, 0, 0.042,   // 25: l_hand near
+        0.22, 0.22, 0, 0.040,   // 26: l_hand mid
+        0.21, 0.19, 0, 0.038,   // 27: l_hand tip
+        // Right arm (14 balls, mirror)
+        0.60, 0.68, 0, 0.065,   // 28: r_shoulder
+        0.62, 0.64, 0, 0.062,   // 29: r_upper 1/6
+        0.64, 0.60, 0, 0.060,   // 30: r_upper 2/6
+        0.66, 0.56, 0, 0.058,   // 31: r_upper 3/6
+        0.68, 0.52, 0, 0.056,   // 32: r_upper 4/6
+        0.70, 0.48, 0, 0.055,   // 33: r_upper 5/6
+        0.72, 0.44, 0, 0.053,   // 34: r_elbow area
+        0.74, 0.40, 0, 0.050,   // 35: r_forearm 1/4
+        0.75, 0.36, 0, 0.048,   // 36: r_forearm 2/4
+        0.76, 0.32, 0, 0.046,   // 37: r_forearm 3/4
+        0.77, 0.28, 0, 0.044,   // 38: r_wrist area
+        0.78, 0.25, 0, 0.042,   // 39: r_hand near
+        0.78, 0.22, 0, 0.040,   // 40: r_hand mid
+        0.79, 0.19, 0, 0.038,   // 41: r_hand tip
+        // Armpit connectors
+        0.43, 0.62, 0, 0.060,   // 42: l_armpit
+        0.57, 0.62, 0, 0.060,   // 43: r_armpit
+        // Back shoulder
+        0.42, 0.58, 0, 0.050,   // 44: l_back
+        0.58, 0.58, 0, 0.050    // 45: r_back
     ]);
+    let ballData = new Float32Array(BALL_DEFAULTS);
     
     const vertexShaderSource = `
         attribute vec2 a_position;
@@ -278,294 +325,219 @@
     
     const fragmentShaderSource = `
         precision highp float;
-        
+
         uniform float u_time;
         uniform vec2 u_resolution;
         uniform float u_waterLevel;
-        
-        // 12 ball positions - using separate uniforms for WebGL 1.0 compatibility
-        uniform vec3 u_b0; uniform vec3 u_b1; uniform vec3 u_b2; uniform vec3 u_b3;
-        uniform vec3 u_b4; uniform vec3 u_b5; uniform vec3 u_b6; uniform vec3 u_b7;
-        uniform vec3 u_b8; uniform vec3 u_b9; uniform vec3 u_b10; uniform vec3 u_b11;
-        
-        #define MAX_STEPS 80
-        #define MAX_DIST 30.0
-        #define SURF_DIST 0.001
-        #define BALL_COUNT 12
-        
-        // ===== Noise Functions =====
-        vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
-        vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
-        vec4 permute(vec4 x) { return mod289(((x*34.0)+1.0)*x); }
-        vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
-        
-        float snoise(vec3 v) {
-            const vec2 C = vec2(1.0/6.0, 1.0/3.0);
-            const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
-            
-            vec3 i = floor(v + dot(v, C.yyy));
-            vec3 x0 = v - i + dot(i, C.xxx);
-            
-            vec3 g = step(x0.yzx, x0.xyz);
-            vec3 l = 1.0 - g;
-            vec3 i1 = min(g.xyz, l.zxy);
-            vec3 i2 = max(g.xyz, l.zxy);
-            
-            vec3 x1 = x0 - i1 + C.xxx;
-            vec3 x2 = x0 - i2 + C.yyy;
-            vec3 x3 = x0 - D.yyy;
-            vec3 x4 = x0 - D.zzz;
-            
-            i = mod289(i);
-            vec4 p = permute(permute(permute(
-                i.z + vec4(0.0, i1.z, i2.z, 1.0))
-                + i.y + vec4(0.0, i1.y, i2.y, 1.0))
-                + i.x + vec4(0.0, i1.x, i2.x, 1.0));
-            
-            float n_ = 0.142857142857;
-            vec3 ns = n_ * D.wyz - D.xzx;
-            
-            vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
-            
-            vec4 x_ = floor(j * ns.z);
-            vec4 y_ = floor(j - 7.0 * x_);
-            
-            vec4 x = x_ *ns.x + ns.yyyy;
-            vec4 y = y_ *ns.x + ns.yyyy;
-            vec4 h = 1.0 - abs(x) - abs(y);
-            
-            vec4 b0 = vec4(x.xy, y.xy);
-            vec4 b1 = vec4(x.zw, y.zw);
-            
-            vec4 s0 = floor(b0)*2.0 + 1.0;
-            vec4 s1 = floor(b1)*2.0 + 1.0;
-            vec4 sh = -step(h, vec4(0.0));
-            
-            vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy;
-            vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww;
-            
-            vec3 p0 = vec3(a0.xy, h.x);
-            vec3 p1 = vec3(a0.zw, h.y);
-            vec3 p2 = vec3(a1.xy, h.z);
-            vec3 p3 = vec3(a1.zw, h.w);
-            
-            vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2,p2), dot(p3,p3)));
-            p0 *= norm.x;
-            p1 *= norm.y;
-            p2 *= norm.z;
-            p3 *= norm.w;
-            
-            vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
-            m = m * m;
-            return 42.0 * dot(m*m, vec4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
+
+        // 38 balls: xy=position (0-1 screen space), z=unused, w=radius
+        uniform vec4 u_balls[46];
+
+        #define BALL_COUNT 46
+        #define THRESHOLD 1.0
+
+        float hash(vec2 p) {
+            return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
         }
-        
-        // ===== Smooth Minimum (Metaball Blend) =====
-        float smax(float a, float b, float k) {
-            float h = clamp(0.5 - 0.5 * (b - a) / k, 0.0, 1.0);
-            return mix(b, a, h) + k * h * (1.0 - h);
+
+        float noise2D(vec2 p) {
+            vec2 i = floor(p);
+            vec2 f = fract(p);
+            f = f * f * (3.0 - 2.0 * f);
+            float a = hash(i);
+            float b = hash(i + vec2(1.0, 0.0));
+            float c = hash(i + vec2(0.0, 1.0));
+            float d = hash(i + vec2(1.0, 1.0));
+            return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
         }
-        
-        float smin(float a, float b, float k) {
-            float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
-            return mix(b, a, h) - k * h * (1.0 - h);
-        }
-        
-        // ===== Ball Properties =====
-        vec3 getBallPos(int i, float t) {
-            vec3 base;
-            if (i == 0) base = u_b0;
-            else if (i == 1) base = u_b1;
-            else if (i == 2) base = u_b2;
-            else if (i == 3) base = u_b3;
-            else if (i == 4) base = u_b4;
-            else if (i == 5) base = u_b5;
-            else if (i == 6) base = u_b6;
-            else if (i == 7) base = u_b7;
-            else if (i == 8) base = u_b8;
-            else if (i == 9) base = u_b9;
-            else if (i == 10) base = u_b10;
-            else base = u_b11;
-            
-            // Add subtle noise for fluid effect
-            float fi = float(i);
-            float speed = 0.5 + fi * 0.1;
-            vec3 noise = vec3(
-                sin(t * speed + fi * 2.1) * 0.03,
-                sin(t * speed * 0.7 + fi * 1.3) * 0.02,
-                sin(t * speed * 0.9 + fi * 3.7) * 0.02
-            );
-            return base + noise;
-        }
-        
-        float getBallRadius(int i, float t) {
-            float baseR;
-            if (i == 0) baseR = 0.18;      // head (smaller)
-            else if (i == 1) baseR = 0.15;  // head2
-            else if (i == 2) baseR = 0.28;  // torso
-            else if (i == 3) baseR = 0.26;  // torso2
-            else if (i == 4) baseR = 0.24;  // torso3
-            else if (i == 5) baseR = 0.22;  // torso4
-            else if (i == 6) baseR = 0.16;  // l_shoulder
-            else if (i == 7) baseR = 0.16;  // r_shoulder
-            else if (i == 8) baseR = 0.13;  // l_elbow
-            else if (i == 9) baseR = 0.13;  // r_elbow
-            else if (i == 10) baseR = 0.16; // l_hip
-            else baseR = 0.16;              // r_hip
-            
-            // Breathing effect
-            float fi = float(i);
-            float breath = 1.0 + sin(t * 0.8 + fi * 0.5) * 0.06;
-            return baseR * breath;
-        }
-        
-        // ===== Scene SDF =====
-        float sceneSDF(vec3 p) {
-            float d = MAX_DIST;
-            float t = u_time;
-            
-            // Blend factor - larger = smoother merging
-            float k = 0.45;
-            
-            for (int i = 0; i < BALL_COUNT; i++) {
-                vec3 ballPos = getBallPos(i, t);
-                float ballRadius = getBallRadius(i, t);
-                float ballDist = length(p - ballPos) - ballRadius;
-                
-                // Smooth union
-                d = smin(d, ballDist, k);
+
+        // Fractal brownian motion for richer texture
+        float fbm(vec2 p) {
+            float v = 0.0;
+            float a = 0.5;
+            for (int i = 0; i < 4; i++) {
+                v += a * noise2D(p);
+                p *= 2.0;
+                a *= 0.5;
             }
-            
-            // Add surface noise for flow effect
-            float flowNoise = snoise(p * 2.0 + vec3(t * 0.3, t * 0.2, t * 0.25)) * 0.08;
-            d += flowNoise;
-            
-            return d;
+            return v;
         }
-        
-        // ===== Normal Estimation =====
-        vec3 getNormal(vec3 p) {
-            float d = sceneSDF(p);
-            vec2 e = vec2(0.001, 0.0);
-            vec3 n = d - vec3(
-                sceneSDF(p - e.xyy),
-                sceneSDF(p - e.yxy),
-                sceneSDF(p - e.yyx)
-            );
-            return normalize(n);
-        }
-        
-        // ===== Ray Marching =====
-        float rayMarch(vec3 ro, vec3 rd) {
-            float dO = 0.0;
-            for (int i = 0; i < MAX_STEPS; i++) {
-                vec3 p = ro + rd * dO;
-                float dS = sceneSDF(p);
-                dO += dS;
-                if (dO > MAX_DIST || abs(dS) < SURF_DIST) break;
-            }
-            return dO;
-        }
-        
-        // ===== Camera Matrix =====
-        mat3 cameraMatrix(vec3 ro, vec3 ta) {
-            vec3 f = normalize(ta - ro);
-            vec3 r = normalize(cross(vec3(0.0, 1.0, 0.0), f));
-            vec3 u = cross(f, r);
-            return mat3(r, u, f);
-        }
-        
-        // ===== Main =====
+
         void main() {
-            vec2 uv = (gl_FragCoord.xy - 0.5 * u_resolution.xy) / u_resolution.y;
-            
-            // Fixed camera looking at center
-            vec3 ro = vec3(0.0, 0.3, 4.0);
-            vec3 ta = vec3(0.0, 0.0, 0.0);
-            
-            // Camera matrix
-            vec3 f = normalize(ta - ro);
-            vec3 r = normalize(cross(vec3(0.0, 1.0, 0.0), f));
-            vec3 u = cross(f, r);
-            
-            vec3 rd = normalize(r * uv.x + u * uv.y + f * 1.5);
-            
-            // Background gradient
-            vec3 bgColor = mix(
-                vec3(0.01, 0.02, 0.04),
-                vec3(0.0, 0.05, 0.1),
-                uv.y * 0.5 + 0.5
-            );
-            
-            // Ray march
-            float d = rayMarch(ro, rd);
-            
-            vec3 col = bgColor;
-            
-            if (d < MAX_DIST) {
-                vec3 p = ro + rd * d;
-                vec3 n = getNormal(p);
-                
-                // Water material
-                vec3 viewDir = normalize(ro - p);
-                
-                // Fresnel
-                float fresnel = pow(1.0 - max(dot(n, viewDir), 0.0), 3.0);
-                
-                // Base water colors
-                vec3 deepColor = vec3(0.02, 0.08, 0.15);
-                vec3 surfaceColor = vec3(0.15, 0.45, 0.65);
-                vec3 highlightColor = vec3(0.6, 0.85, 1.0);
-                
-                // Height-based coloring (water level effect)
-                float heightFactor = smoothstep(-1.5, 1.5, p.y);
-                vec3 waterColor = mix(deepColor, surfaceColor, heightFactor);
-                
-                // Apply water level
-                float waterFill = u_waterLevel;
-                float waterHeight = -1.0 + waterFill * 2.5;
-                float inWater = step(p.y, waterHeight);
-                
-                // Below water level = more opaque blue
-                waterColor = mix(waterColor, deepColor * 1.5, inWater * 0.5);
-                
-                // Surface highlight
-                waterColor = mix(waterColor, highlightColor, fresnel * 0.6);
-                
-                // Specular highlight
-                vec3 lightDir = normalize(vec3(0.5, 0.8, 0.6));
-                vec3 halfVec = normalize(lightDir + viewDir);
-                float spec = pow(max(dot(n, halfVec), 0.0), 64.0);
-                waterColor += vec3(0.8, 0.9, 1.0) * spec * 0.5;
-                
-                // Secondary light
-                vec3 lightDir2 = normalize(vec3(-0.3, 0.5, -0.4));
-                vec3 halfVec2 = normalize(lightDir2 + viewDir);
-                float spec2 = pow(max(dot(n, halfVec2), 0.0), 32.0);
-                waterColor += vec3(0.3, 0.5, 0.6) * spec2 * 0.3;
-                
-                // Rim lighting
-                float rim = pow(1.0 - max(dot(n, viewDir), 0.0), 2.0);
-                waterColor += vec3(0.2, 0.5, 0.7) * rim * 0.3;
-                
-                // Edge glow
-                float edge = pow(fresnel, 1.5);
-                waterColor += vec3(0.3, 0.6, 0.8) * edge * 0.4;
-                
-                col = waterColor;
-                
-                // Atmosphere fog
-                float fog = 1.0 - exp(-d * 0.05);
-                col = mix(col, bgColor, fog * 0.3);
+            vec2 uv = gl_FragCoord.xy / u_resolution;
+            float aspect = u_resolution.x / u_resolution.y;
+            float t = u_time;
+
+            // ---- Compute 2D metaball field ----
+            float field = 0.0;
+            // Also track weighted center for internal effects
+            float totalWeight = 0.0;
+            vec2 weightedCenter = vec2(0.0);
+
+            for (int i = 0; i < BALL_COUNT; i++) {
+                vec4 ball = u_balls[i];
+                vec2 ballPos = ball.xy;
+
+                // Wobble: each ball has unique frequency and amplitude
+                float fi = float(i);
+                float wobFreq1 = 0.4 + hash(vec2(fi, 1.0)) * 0.5;
+                float wobFreq2 = 0.3 + hash(vec2(fi, 2.0)) * 0.4;
+                float wobAmpX = 0.004 + hash(vec2(fi, 3.0)) * 0.008;
+                float wobAmpY = 0.003 + hash(vec2(fi, 4.0)) * 0.006;
+                ballPos += vec2(
+                    sin(t * wobFreq1 + fi * 2.1 + hash(vec2(fi, 5.0)) * 6.28) * wobAmpX,
+                    cos(t * wobFreq2 + fi * 1.7 + hash(vec2(fi, 6.0)) * 6.28) * wobAmpY
+                );
+
+                // Breathing: randomized per ball
+                float breathFreq = 0.6 + hash(vec2(fi, 7.0)) * 0.6;
+                float breathAmp = 0.03 + hash(vec2(fi, 8.0)) * 0.05;
+                float breath = 1.0 + sin(t * breathFreq + fi * 0.5) * breathAmp;
+                float r = ball.w * breath;
+
+                vec2 diff = uv - ballPos;
+                diff.x *= aspect;
+                float d2 = dot(diff, diff);
+                float contribution = r * r / max(d2, 0.00001);
+                field += contribution;
+
+                // Track center for depth effect
+                if (contribution > 0.01) {
+                    weightedCenter += ballPos * contribution;
+                    totalWeight += contribution;
+                }
             }
-            
-            // Vignette
-            float vig = 1.0 - smoothstep(0.5, 1.5, length(uv));
-            col *= vig;
-            
-            // Gamma correction
+
+            // ---- Background ----
+            // Light blue gradient instead of dark
+            vec3 bgColor = mix(
+                vec3(0.55, 0.75, 0.88),
+                vec3(0.82, 0.92, 0.97),
+                uv.y
+            );
+            // Very subtle caustic near body
+            float bgCaustic = noise2D(uv * 25.0 + vec2(t * 0.2, t * 0.15)) * 0.02;
+            bgColor += vec3(0.02, 0.04, 0.06) * bgCaustic * smoothstep(0.2, 0.8, field);
+
+            vec3 col = bgColor;
+
+            // ---- Smooth edge transition ----
+            float edgeFade = smoothstep(THRESHOLD - 0.3, THRESHOLD + 0.3, field);
+
+            if (field > THRESHOLD * 0.3) {
+                // Compute gradient (normal) for shading
+                float eps = 0.002;
+                float fieldR = 0.0, fieldU = 0.0;
+                for (int i = 0; i < BALL_COUNT; i++) {
+                    vec4 ball = u_balls[i];
+                    vec2 bp = ball.xy;
+                    float fi = float(i);
+                    bp += vec2(
+                        sin(t * (0.4 + hash(vec2(fi,1.0))*0.5) + fi*2.1) * (0.004 + hash(vec2(fi,3.0))*0.008),
+                        cos(t * (0.3 + hash(vec2(fi,2.0))*0.4) + fi*1.7) * (0.003 + hash(vec2(fi,4.0))*0.006)
+                    );
+                    float br = 1.0 + sin(t * (0.6 + hash(vec2(fi,7.0))*0.6) + fi*0.5) * (0.03 + hash(vec2(fi,8.0))*0.05);
+                    float r = ball.w * br;
+
+                    vec2 dR = (uv + vec2(eps, 0.0)) - bp; dR.x *= aspect;
+                    fieldR += r * r / max(dot(dR, dR), 0.00001);
+                    vec2 dU = (uv + vec2(0.0, eps)) - bp; dU.x *= aspect;
+                    fieldU += r * r / max(dot(dU, dU), 0.00001);
+                }
+                vec2 grad = vec2(fieldR - field, fieldU - field) / eps;
+                float gradLen = length(grad);
+                vec2 normal2D = gradLen > 0.001 ? -grad / gradLen : vec2(0.0, 1.0);
+
+                // "Fresnel" - stronger at edges where gradient is shallow
+                float fresnel = 1.0 - smoothstep(0.0, 80.0, gradLen);
+                fresnel = pow(fresnel, 0.6);
+
+                // Depth: higher field value = deeper inside body = more opaque
+                float depth = smoothstep(THRESHOLD, THRESHOLD * 3.0, field);
+
+                // === Water colors with depth ===
+                vec3 deepColor    = vec3(0.15, 0.40, 0.58);  // lightened
+                vec3 midColor     = vec3(0.22, 0.52, 0.70);  // lightened
+                vec3 surfaceColor = vec3(0.35, 0.65, 0.82);
+                vec3 edgeColor    = vec3(0.55, 0.82, 0.95);
+
+                vec3 waterColor = mix(edgeColor, midColor, depth);
+                waterColor = mix(waterColor, deepColor, depth * depth * 0.2);
+
+                // Height-based tint
+                waterColor = mix(waterColor, surfaceColor, smoothstep(0.3, 0.8, uv.y) * 0.3);
+
+                // Water level fill effect
+                float waterFill = u_waterLevel;
+                float waterLine = 1.0 - waterFill * 0.6;
+                float inWater = smoothstep(waterLine + 0.03, waterLine - 0.03, uv.y);
+                waterColor = mix(waterColor, deepColor * 1.5, inWater * 0.35);
+
+                // === Lighting ===
+                vec2 lightDir1 = normalize(vec2(0.4, 0.8));
+                vec2 lightDir2 = normalize(vec2(-0.5, 0.3));
+
+                // Diffuse
+                float diff1 = max(dot(normal2D, lightDir1), 0.0);
+                float diff2 = max(dot(normal2D, lightDir2), 0.0);
+                waterColor += vec3(0.15, 0.30, 0.45) * diff1 * 0.4;
+                waterColor += vec3(0.05, 0.10, 0.15) * diff2 * 0.2;
+
+                // Specular highlights (sharp water-like)
+                vec2 halfV1 = normalize(lightDir1 + vec2(0.0, 1.0));
+                float spec1 = pow(max(dot(normal2D, halfV1), 0.0), 48.0);
+                waterColor += vec3(0.8, 0.92, 1.0) * spec1 * 0.6;
+
+                vec2 halfV2 = normalize(lightDir2 + vec2(0.0, 1.0));
+                float spec2 = pow(max(dot(normal2D, halfV2), 0.0), 24.0);
+                waterColor += vec3(0.3, 0.5, 0.7) * spec2 * 0.3;
+
+                // === Fresnel edge: translucent water look ===
+                vec3 fresnelColor = vec3(0.5, 0.85, 1.0);
+                waterColor = mix(waterColor, fresnelColor, fresnel * 0.65);
+
+                // === Edge rim glow ===
+                float edgeDist = field - THRESHOLD;
+                float rimGlow = exp(-edgeDist * 3.0) * 0.4;
+                waterColor += vec3(0.3, 0.65, 0.95) * rimGlow;
+
+                // === Surface water effects ===
+                // Flowing caustic pattern
+                float caustic = fbm(uv * 15.0 + vec2(t * 0.4, t * 0.3) + normal2D * 0.5);
+                waterColor += vec3(0.08, 0.15, 0.20) * caustic * depth;
+
+                // Bubble noise (small bright spots)
+                float bubble = noise2D(uv * 60.0 + vec2(t * 0.8, t * 0.6));
+                bubble = smoothstep(0.75, 0.85, bubble);
+                waterColor += vec3(0.3, 0.5, 0.6) * bubble * 0.3 * depth;
+
+                // Surface ripple highlight
+                float ripple = noise2D(uv * 40.0 + vec2(t * 0.5, -t * 0.3) + normal2D * 2.0);
+                waterColor += vec3(0.05, 0.12, 0.18) * ripple;
+
+                // Slight transparency at very edges
+                float alpha = mix(0.7, 1.0, depth);
+
+                col = mix(bgColor, waterColor, edgeFade * alpha);
+
+                // ---- Outline: sharp edge line ----
+                float edgeSharp = smoothstep(THRESHOLD - 0.15, THRESHOLD + 0.15, field);
+                float outline = smoothstep(0.0, 0.3, edgeSharp) - smoothstep(0.3, 0.7, edgeSharp);
+                vec3 outlineColor = vec3(0.3, 0.6, 0.85);
+                col = mix(col, outlineColor, outline * 0.7);
+            }
+
+            // ---- Outer glow (very subtle) ----
+            float glow = smoothstep(THRESHOLD * 0.2, THRESHOLD * 0.7, field);
+            col += vec3(0.05, 0.15, 0.25) * glow * 0.15 * (1.0 - edgeFade);
+
+            // Vignette (light for bright background)
+            float vig = 1.0 - smoothstep(0.7, 1.6, length((uv - 0.5) * vec2(aspect, 1.0)));
+            col = mix(col, col * 0.9, 1.0 - vig);
+
+            // Gamma
             col = pow(col, vec3(0.85));
-            
+
             gl_FragColor = vec4(col, 1.0);
         }
     `;
@@ -599,12 +571,19 @@
             loadTextEl.textContent = 'WebGL not supported';
             return false;
         }
-        
+
         const vs = createShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
         const fs = createShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
+        if (!vs || !fs) {
+            dbg(['Shader compile failed']);
+            return false;
+        }
         program = createProgram(gl, vs, fs);
-        
-        if (!program) return false;
+
+        if (!program) {
+            dbg(['Program link failed']);
+            return false;
+        }
         
         gl.useProgram(program);
         
@@ -622,6 +601,11 @@
         timeUniform = gl.getUniformLocation(program, 'u_time');
         resolutionUniform = gl.getUniformLocation(program, 'u_resolution');
         waterLevelUniform = gl.getUniformLocation(program, 'u_waterLevel');
+        ballsUniformLoc = gl.getUniformLocation(program, 'u_balls[0]');
+        if (!ballsUniformLoc) {
+            console.error('Failed to get u_balls uniform location');
+            dbg(['ERROR: u_balls uniform not found']);
+        }
         
         return true;
     }
@@ -695,106 +679,11 @@
     }
     
     // ============================================================
-    // Draw Pose Outline (for debugging / visual reference)
+    // Draw Pose Outline (skeleton overlay, subtle reference)
     // ============================================================
     function drawPoseOutline(lm) {
         if (!lm || lm.length < 25) return;
-        
-        const w = outlineCanvas.width;
-        const h = outlineCanvas.height;
-        const vw = video.videoWidth || 640;
-        const vh = video.videoHeight || 480;
-        
-        // Cover-mode coordinate conversion (mirror)
-        const videoAspect = vw / vh;
-        const canvasAspect = w / h;
-        let scale, offsetX, offsetY;
-        if (canvasAspect > videoAspect) {
-            scale = h / vh;
-            offsetX = (w - vw * scale) / 2;
-            offsetY = 0;
-        } else {
-            scale = w / vw;
-            offsetX = 0;
-            offsetY = (h - vh * scale) / 2;
-        }
-        
-        const toX = (nx) => w - (nx * vw * scale + offsetX); // mirror
-        const toY = (ny) => ny * vh * scale + offsetY;
-        
-        // Draw skeleton connections
-        const connections = [
-            [11, 12], // shoulders
-            [11, 13], [13, 15], // left arm
-            [12, 14], [14, 16], // right arm
-            [11, 23], [12, 24], // torso sides
-            [23, 24], // hips
-        ];
-        
-        outlineCtx.strokeStyle = 'rgba(100,200,255,0.3)';
-        outlineCtx.lineWidth = 2;
-        connections.forEach(([a, b]) => {
-            if (lm[a] && lm[b]) {
-                outlineCtx.beginPath();
-                outlineCtx.moveTo(toX(lm[a].x), toY(lm[a].y));
-                outlineCtx.lineTo(toX(lm[b].x), toY(lm[b].y));
-                outlineCtx.stroke();
-            }
-        });
-        
-        // Draw key points
-        const keyPoints = [0, 11, 12, 13, 14, 15, 16, 23, 24];
-        keyPoints.forEach(i => {
-            if (lm[i]) {
-                outlineCtx.beginPath();
-                outlineCtx.arc(toX(lm[i].x), toY(lm[i].y), 6, 0, Math.PI * 2);
-                outlineCtx.fillStyle = 'rgba(100,200,255,0.6)';
-                outlineCtx.fill();
-                outlineCtx.strokeStyle = 'rgba(100,200,255,0.9)';
-                outlineCtx.lineWidth = 1;
-                outlineCtx.stroke();
-            }
-        });
-        
-        // Also draw the mapped shader positions as small dots for comparison
-        const mapX = (x) => (0.5 - x) * 3;
-        const mapY = (y) => -(y - 0.3) * 2.5 + 0.8;
-        
-        // Shader camera: ro=(0,0.3,4), ta=(0,0,0)
-        // Convert shader coords back to screen coords for overlay
-        const camRo = [0, 0.3, 4];
-        const camTa = [0, 0, 0];
-        const camF = [0, 0, -1]; // forward
-        const camR = [1, 0, 0];  // right
-        const camU = [0, 1, 0];  // up
-        const fov = 1.5; // matches shader
-        
-        keyPoints.forEach(i => {
-            if (lm[i]) {
-                const sx = mapX(lm[i].x);
-                const sy = mapY(lm[i].y);
-                const sz = -lm[i].z * 1.5;
-                
-                // Project 3D -> 2D (simplified)
-                const dx = sx - camRo[0];
-                const dy = sy - camRo[1];
-                const dz = sz - camRo[2];
-                
-                if (dz < 0) { // in front of camera
-                    const px = (dx * camR[0] + dy * camR[1] + dz * camR[2]) / (-dz) * fov;
-                    const py = (dx * camU[0] + dy * camU[1] + dz * camU[2]) / (-dz) * fov;
-                    
-                    const screenX = w / 2 + px * w / 2;
-                    const screenY = h / 2 - py * h / 2;
-                    
-                    // Draw as orange dot (shader mapped position)
-                    outlineCtx.beginPath();
-                    outlineCtx.arc(screenX, screenY, 4, 0, Math.PI * 2);
-                    outlineCtx.fillStyle = 'rgba(255,150,50,0.8)';
-                    outlineCtx.fill();
-                }
-            }
-        });
+        // No overlay needed - metaball IS the body visualization now
     }
     
     function processPose(poseLm, faceLm) {
@@ -832,29 +721,54 @@
         }
         
         // State 2: 等待喝水
+        // Detection: hand near face + head tilted upward
         if (state === 2) {
             if (!validPose) return;
-            
+
+            const nose = poseLm[0];
             const lWrist = poseLm[15];
             const rWrist = poseLm[16];
-            const mouthCenter = { x: poseLm[0].x, y: poseLm[0].y, z: poseLm[0].z || 0 };
-            
-            let drinking = false;
+            const lShoulder = poseLm[11];
+            const rShoulder = poseLm[12];
+
+            // Head baseline: nose-to-shoulder-midpoint relative Y
+            // Using relative position makes it robust to body movement
+            const shoulderMidY = (lShoulder.y + rShoulder.y) / 2;
+            const relativeNoseY = nose.y - shoulderMidY;  // negative (nose above shoulders)
+
+            // Init baseline on first frame
+            if (headBaseY === null) headBaseY = relativeNoseY;
+
+            // Hand-to-face distance first (to decide if we should freeze baseline)
+            let handNearFace = false;
             let minDist = 999;
-            
-            if (lWrist) {
-                const d = dist3D(lWrist, mouthCenter);
-                if (d < minDist) minDist = d;
-                if (d < DRINK_DIST) drinking = true;
+            const facePt = { x: nose.x, y: nose.y, z: nose.z || 0 };
+            [lWrist, rWrist].forEach(w => {
+                if (w) {
+                    const d = dist3D(w, facePt);
+                    if (d < minDist) minDist = d;
+                    if (d < HAND_FACE_DIST) handNearFace = true;
+                }
+            });
+
+            // Only update baseline when hand is NOT near face (avoid chasing tilt)
+            if (!handNearFace) {
+                headBaseY = headBaseY * 0.92 + relativeNoseY * 0.08;
             }
-            if (rWrist) {
-                const d = dist3D(rWrist, mouthCenter);
-                if (d < minDist) minDist = d;
-                if (d < DRINK_DIST) drinking = true;
-            }
-            
-            if (frameCount % 20 === 0) {
-                dbg(['min=' + minDist.toFixed(3), 'drink=' + drinkCount + '/' + DRINK_TARGET]);
+
+            // Head tilt: relativeNoseY is negative, gets MORE negative when head tilts up
+            const headTilt = headBaseY - relativeNoseY;  // positive when head tilts up
+            const isHeadUp = headTilt > HEAD_TILT_UP;
+
+            // Both conditions: hand near face AND head tilted up
+            const drinking = handNearFace && isHeadUp;
+
+            if (frameCount % 15 === 0) {
+                dbg([
+                    'tilt=' + headTilt.toFixed(3) + (isHeadUp ? ' UP' : ''),
+                    'hDist=' + minDist.toFixed(3) + (handNearFace ? ' NEAR' : ''),
+                    'drink=' + drinkCount + '/' + DRINK_TARGET
+                ]);
             }
             
             if (drinking && Date.now() - lastDrinkTime > DRINK_COOLDOWN) {
@@ -924,6 +838,18 @@
     // ============================================================
     let startTime = null;
     let prevPose = null;
+
+    // Per-ball random jitter (computed once, stable)
+    const ballJitter = [];
+    for (let i = 0; i < 46; i++) {
+        const s = Math.sin(i * 127.1 + 311.7) * 43758.5453;
+        const r1 = (s - Math.floor(s)) * 2 - 1;  // -1 to 1
+        const s2 = Math.sin(i * 269.5 + 183.3) * 43758.5453;
+        const r2 = (s2 - Math.floor(s2)) * 2 - 1;
+        const s3 = Math.sin(i * 419.2 + 71.9) * 43758.5453;
+        const r3 = (s3 - Math.floor(s3));          // 0 to 1, radius scale
+        ballJitter.push({ dx: r1, dy: r2, rs: 0.85 + r3 * 0.3 }); // radius scale 0.85-1.15
+    }
     
     function smoothPt(cur, prev, a = 0.5) {
         if (!prev) return cur;
@@ -946,129 +872,171 @@
         progressTextEl.textContent = Math.round(waterLevel * 100) + '%';
         
         // Update ball positions from pose data
+        // ballData layout: 46 balls * 4 floats (x, y, z, radius)
         if (poseData && poseData.length >= 25) {
-            // Simple direct mapping: MediaPipe (0-1) -> shader visible range
-            // Camera at (0, 0.3, 4) looking at (0, 0, 0)
-            // Visible range roughly x: -2 to 2, y: -2 to 2
-            // No mirror - user moves right, water person moves right
-            const mapX = (x) => (0.5 - x) * 3;      // mirror: left in camera = left on screen
-            const mapY = (y) => -(y - 0.3) * 2.5 + 0.8; // flip y, shift up to match screen
-            
-            // Head: nose (0)
-            ballPositions[0] = mapX(poseData[0].x);
-            ballPositions[1] = mapY(poseData[0].y);
-            ballPositions[2] = -poseData[0].z * 1.5;
-            
-            // Debug log every 30 frames
-            if (frameCount % 30 === 0) {
-                dbg(['pose!', 'head: ' + ballPositions[0].toFixed(2) + ', ' + ballPositions[1].toFixed(2) + ', ' + ballPositions[2].toFixed(2)]);
-            }
-            
-            // Head2: below head
-            ballPositions[3] = ballPositions[0];
-            ballPositions[4] = ballPositions[1] - 0.3;
-            ballPositions[5] = ballPositions[2];
-            
-            // Torso: between shoulders and hips
+            const mapX = (mpX) => 1.0 - mpX;
+            const mapY = (mpY) => 1.0 - mpY;
+
+            const setBall = (idx, pt, r) => {
+                const off = idx * 4;
+                const j = ballJitter[idx];
+                const jx = j.dx * 0.003;
+                const jy = j.dy * 0.003;
+                ballData[off]     = mapX(pt.x) + jx;
+                ballData[off + 1] = mapY(pt.y) + jy;
+                ballData[off + 2] = 0;
+                ballData[off + 3] = r * j.rs;
+            };
+
+            const lerp = (a, b, t) => ({ x: a.x+(b.x-a.x)*t, y: a.y+(b.y-a.y)*t, z: (a.z||0)+((b.z||0)-(a.z||0))*t });
+            const mid  = (a, b) => lerp(a, b, 0.5);
+
+            // --- Landmarks ---
+            const nose      = poseData[0];
+            const lEar      = poseData[7] || nose;
+            const rEar      = poseData[8] || nose;
             const lShoulder = poseData[11];
             const rShoulder = poseData[12];
-            const lHip = poseData[23];
-            const rHip = poseData[24];
-            
-            const shoulderCX = (mapX(lShoulder.x) + mapX(rShoulder.x)) / 2;
-            const shoulderCY = (mapY(lShoulder.y) + mapY(rShoulder.y)) / 2;
-            const hipCX = (mapX(lHip.x) + mapX(rHip.x)) / 2;
-            const hipCY = (mapY(lHip.y) + mapY(rHip.y)) / 2;
-            const torsoCZ = (-(lShoulder.z + rShoulder.z + lHip.z + rHip.z) / 4) * 1.5;
-            
-            // Torso 1 (upper chest) - near shoulders
-            ballPositions[6] = shoulderCX;
-            ballPositions[7] = shoulderCY + 0.1;
-            ballPositions[8] = torsoCZ;
-            
-            // Torso 2 (mid chest)
-            ballPositions[9] = (shoulderCX + hipCX) / 2;
-            ballPositions[10] = (shoulderCY + hipCY) / 2;
-            ballPositions[11] = torsoCZ;
-            
-            // Torso 3 (lower)
-            ballPositions[12] = (shoulderCX + hipCX) / 2;
-            ballPositions[13] = (shoulderCY + hipCY) / 2 - 0.25;
-            ballPositions[14] = torsoCZ;
-            
-            // Torso 4 (near hips)
-            ballPositions[15] = hipCX;
-            ballPositions[16] = hipCY + 0.1;
-            ballPositions[17] = torsoCZ;
-            
-            // Left shoulder
-            ballPositions[18] = mapX(lShoulder.x);
-            ballPositions[19] = mapY(lShoulder.y);
-            ballPositions[20] = -lShoulder.z * 1.5;
-            
-            // Right shoulder
-            ballPositions[21] = mapX(rShoulder.x);
-            ballPositions[22] = mapY(rShoulder.y);
-            ballPositions[23] = -rShoulder.z * 1.5;
-            
-            // Left elbow
-            const lElbow = poseData[13];
-            ballPositions[24] = mapX(lElbow.x);
-            ballPositions[25] = mapY(lElbow.y);
-            ballPositions[26] = -lElbow.z * 1.5;
-            
-            // Right elbow
-            const rElbow = poseData[14];
-            ballPositions[27] = mapX(rElbow.x);
-            ballPositions[28] = mapY(rElbow.y);
-            ballPositions[29] = -rElbow.z * 1.5;
-            
-            // Left hip
-            ballPositions[30] = mapX(lHip.x);
-            ballPositions[31] = mapY(lHip.y);
-            ballPositions[32] = -lHip.z * 1.5;
-            
-            // Right hip
-            ballPositions[33] = mapX(rHip.x);
-            ballPositions[34] = mapY(rHip.y);
-            ballPositions[35] = -rHip.z * 1.5;
+            const lElbow    = poseData[13];
+            const rElbow    = poseData[14];
+            const lWrist    = poseData[15];
+            const rWrist    = poseData[16];
+            const lHip      = poseData[23];
+            const rHip      = poseData[24];
+
+            // --- Derived anchors ---
+            const neckPt    = mid(lShoulder, rShoulder);
+            const hipCX     = mid(lHip, rHip);
+            const chestPt   = lerp(neckPt, hipCX, 0.15);
+            const upperTorso= lerp(neckPt, hipCX, 0.28);
+            const midTorso  = lerp(neckPt, hipCX, 0.42);
+            const abdomenPt = lerp(neckPt, hipCX, 0.58);
+            const lowerAb   = lerp(neckPt, hipCX, 0.75);
+            // Head
+            const headL     = lerp(nose, lEar, 0.6);
+            const headR     = lerp(nose, rEar, 0.6);
+            const headTop   = lerp(nose, neckPt, -0.55);
+            const jaw       = lerp(nose, neckPt, 0.45);
+            // Left arm: 14 interpolation points
+            // shoulder->elbow: 6 evenly spaced
+            // elbow->wrist: 4 evenly spaced
+            // wrist->hand: 3 points extending past wrist
+            const lU1 = lerp(lShoulder, lElbow, 1/6);
+            const lU2 = lerp(lShoulder, lElbow, 2/6);
+            const lU3 = lerp(lShoulder, lElbow, 3/6);
+            const lU4 = lerp(lShoulder, lElbow, 4/6);
+            const lU5 = lerp(lShoulder, lElbow, 5/6);
+            const lF1 = lWrist ? lerp(lElbow, lWrist, 0.2) : lElbow;
+            const lF2 = lWrist ? lerp(lElbow, lWrist, 0.4) : lElbow;
+            const lF3 = lWrist ? lerp(lElbow, lWrist, 0.6) : lElbow;
+            const lF4 = lWrist ? lerp(lElbow, lWrist, 0.8) : lElbow;
+            const lH1 = lWrist ? lerp(lElbow, lWrist, 1.0) : lElbow;
+            const lH2 = lWrist ? lerp(lElbow, lWrist, 1.15) : lElbow;
+            const lH3 = lWrist ? lerp(lElbow, lWrist, 1.30) : lElbow;
+            // Right arm (mirror)
+            const rU1 = lerp(rShoulder, rElbow, 1/6);
+            const rU2 = lerp(rShoulder, rElbow, 2/6);
+            const rU3 = lerp(rShoulder, rElbow, 3/6);
+            const rU4 = lerp(rShoulder, rElbow, 4/6);
+            const rU5 = lerp(rShoulder, rElbow, 5/6);
+            const rF1 = rWrist ? lerp(rElbow, rWrist, 0.2) : rElbow;
+            const rF2 = rWrist ? lerp(rElbow, rWrist, 0.4) : rElbow;
+            const rF3 = rWrist ? lerp(rElbow, rWrist, 0.6) : rElbow;
+            const rF4 = rWrist ? lerp(rElbow, rWrist, 0.8) : rElbow;
+            const rH1 = rWrist ? lerp(rElbow, rWrist, 1.0) : rElbow;
+            const rH2 = rWrist ? lerp(rElbow, rWrist, 1.15) : rElbow;
+            const rH3 = rWrist ? lerp(rElbow, rWrist, 1.30) : rElbow;
+            // Connectors
+            const lCollar = lerp(neckPt, lShoulder, 0.5);
+            const rCollar = lerp(neckPt, rShoulder, 0.5);
+            const lArmpit = lerp(lShoulder, midTorso, 0.5);
+            const rArmpit = lerp(rShoulder, midTorso, 0.5);
+            const lBack   = lerp(lShoulder, upperTorso, 0.6);
+            const rBack   = lerp(rShoulder, upperTorso, 0.6);
+
+            // --- Head (5) ---
+            setBall(0, headTop,  0.060);
+            setBall(1, headL,    0.055);
+            setBall(2, nose,     0.065);
+            setBall(3, headR,    0.055);
+            setBall(4, jaw,      0.055);
+
+            // --- Neck ---
+            setBall(5, neckPt, 0.050);
+
+            // --- Torso (6) ---
+            setBall(6,  chestPt,    0.080);
+            setBall(7,  upperTorso, 0.130);
+            setBall(8,  midTorso,   0.120);
+            setBall(9,  abdomenPt,  0.100);
+            setBall(10, lowerAb,    0.085);
+            setBall(11, hipCX,      0.070);
+
+            // --- Collarbones ---
+            setBall(12, lCollar, 0.060);
+            setBall(13, rCollar, 0.060);
+
+            // --- Left arm (14 balls) ---
+            setBall(14, lShoulder, 0.065);
+            setBall(15, lU1,       0.062);
+            setBall(16, lU2,       0.060);
+            setBall(17, lU3,       0.058);
+            setBall(18, lU4,       0.056);
+            setBall(19, lU5,       0.055);
+            setBall(20, lElbow,    0.053);
+            setBall(21, lF1,       0.052);
+            setBall(22, lF2,       0.050);
+            setBall(23, lF3,       0.048);
+            setBall(24, lF4,       0.046);
+            setBall(25, lH1,       0.044);
+            setBall(26, lH2,       0.042);
+            setBall(27, lH3,       0.038);
+
+            // --- Right arm (14 balls) ---
+            setBall(28, rShoulder, 0.065);
+            setBall(29, rU1,       0.062);
+            setBall(30, rU2,       0.060);
+            setBall(31, rU3,       0.058);
+            setBall(32, rU4,       0.056);
+            setBall(33, rU5,       0.055);
+            setBall(34, rElbow,    0.053);
+            setBall(35, rF1,       0.052);
+            setBall(36, rF2,       0.050);
+            setBall(37, rF3,       0.048);
+            setBall(38, rF4,       0.046);
+            setBall(39, rH1,       0.044);
+            setBall(40, rH2,       0.042);
+            setBall(41, rH3,       0.038);
+
+            // --- Armpit connectors ---
+            setBall(42, lArmpit, 0.060);
+            setBall(43, rArmpit, 0.060);
+
+            // --- Back shoulder ---
+            setBall(44, lBack, 0.050);
+            setBall(45, rBack, 0.050);
+
+            if (frameCount % 30 === 0) {
+                dbg([
+                    'head: ' + ballData[8].toFixed(3) + ',' + ballData[9].toFixed(3),
+                    'uLoc=' + (ballsUniformLoc ? 'ok' : 'NULL')
+                ]);
+            }
         } else {
-            // No pose detected, log occasionally
             if (frameCount % 60 === 0) {
                 dbg(['No pose data', 'poseData=' + (poseData ? poseData.length : 'null')]);
             }
         }
-        
+
         // Render
         gl.uniform1f(timeUniform, t);
         gl.uniform2f(resolutionUniform, canvas.width, canvas.height);
         gl.uniform1f(waterLevelUniform, waterLevel);
-        
-        // Pass ball positions to shader
-        gl.uniform3f(gl.getUniformLocation(program, 'u_b0'), 
-            ballPositions[0], ballPositions[1], ballPositions[2]);
-        gl.uniform3f(gl.getUniformLocation(program, 'u_b1'), 
-            ballPositions[3], ballPositions[4], ballPositions[5]);
-        gl.uniform3f(gl.getUniformLocation(program, 'u_b2'), 
-            ballPositions[6], ballPositions[7], ballPositions[8]);
-        gl.uniform3f(gl.getUniformLocation(program, 'u_b3'), 
-            ballPositions[9], ballPositions[10], ballPositions[11]);
-        gl.uniform3f(gl.getUniformLocation(program, 'u_b4'), 
-            ballPositions[12], ballPositions[13], ballPositions[14]);
-        gl.uniform3f(gl.getUniformLocation(program, 'u_b5'), 
-            ballPositions[15], ballPositions[16], ballPositions[17]);
-        gl.uniform3f(gl.getUniformLocation(program, 'u_b6'), 
-            ballPositions[18], ballPositions[19], ballPositions[20]);
-        gl.uniform3f(gl.getUniformLocation(program, 'u_b7'), 
-            ballPositions[21], ballPositions[22], ballPositions[23]);
-        gl.uniform3f(gl.getUniformLocation(program, 'u_b8'), 
-            ballPositions[24], ballPositions[25], ballPositions[26]);
-        gl.uniform3f(gl.getUniformLocation(program, 'u_b9'), 
-            ballPositions[27], ballPositions[28], ballPositions[29]);
-        gl.uniform3f(gl.getUniformLocation(program, 'u_b10'), 
-            ballPositions[30], ballPositions[31], ballPositions[32]);
-        gl.uniform3f(gl.getUniformLocation(program, 'u_b11'), 
-            ballPositions[33], ballPositions[34], ballPositions[35]);
+
+        // Pass all 46 balls as one uniform4fv call
+        if (ballsUniformLoc) {
+            gl.uniform4fv(ballsUniformLoc, ballData);
+        }
         
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         
