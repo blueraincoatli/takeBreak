@@ -5,440 +5,959 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>功德+1</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
-            margin: 0;
-            padding: 0;
             overflow: hidden;
             font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
         }
 
-        .bg-screenshot {
+        /* 庄严肃穆深色背景 */
+        .bg {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            background: #000 no-repeat center center;
-            background-size: 100vw 100vh;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
             z-index: 0;
+            background:
+                radial-gradient(ellipse 140% 70% at 50% 110%, #1e0e02 0%, transparent 65%),
+                radial-gradient(ellipse 80% 50% at 50% -10%, #0a0500 0%, transparent 60%),
+                radial-gradient(ellipse 50% 35% at 15% 50%, #0f0800 0%, transparent 50%),
+                radial-gradient(ellipse 50% 35% at 85% 50%, #0f0800 0%, transparent 50%),
+                linear-gradient(180deg, #060301 0%, #100800 50%, #0c0600 100%);
         }
 
-        .overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            cursor: pointer;
-            z-index: 10000;
-            opacity: 0;
-            animation: fadeIn 0.5s ease forwards;
-            background: linear-gradient(180deg, 
-                rgba(139, 90, 43, 0.9) 0%, 
-                rgba(101, 67, 33, 0.95) 50%,
-                rgba(62, 39, 35, 0.98) 100%);
-        }
-
-        @keyframes fadeIn {
-            to { opacity: 1; }
-        }
-
-        /* 寺庙风格装饰边框 */
-        .temple-border {
-            position: fixed;
-            top: 2%;
-            left: 2%;
-            right: 2%;
-            bottom: 2%;
-            border: 3px solid #D4AF37;
-            border-radius: 10px;
-            pointer-events: none;
-            z-index: 1;
-        }
-
-        .temple-border::before {
+        /* 佛光微光 */
+        .bg::after {
             content: '';
-            position: absolute;
-            top: 5px;
-            left: 5px;
-            right: 5px;
-            bottom: 5px;
-            border: 1px solid rgba(212, 175, 55, 0.5);
-            border-radius: 5px;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            z-index: 1;
+            background: radial-gradient(ellipse 55% 35% at 50% 55%, rgba(139,90,43,0.08) 0%, transparent 100%);
+            pointer-events: none;
         }
 
-        /* 顶部文字 */
-        .header-text {
+        /* 隐藏 video */
+        #video { display: none; }
+
+        /* 人脸五官轮廓画布 */
+        #canvas {
             position: fixed;
-            top: 8%;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            z-index: 30;
+            pointer-events: none;
+        }
+
+        /* 木鱼图片 */
+        .fish {
+            position: fixed;
+            bottom: -12vh;
             left: 50%;
             transform: translateX(-50%);
-            font-size: clamp(20px, 4vw, 36px);
-            color: #D4AF37;
-            text-shadow: 0 0 20px rgba(212, 175, 55, 0.5);
-            letter-spacing: 8px;
+            width: 72vw;
+            max-width: 580px;
             z-index: 10;
-            opacity: 0;
-            animation: slideDown 0.8s ease 0.3s forwards;
+            pointer-events: none;
+            filter: drop-shadow(0 -10px 40px rgba(0,0,0,0.9));
+        }
+        .fish img { width: 100%; height: auto; display: block; }
+        .fish.hit { animation: fishHit 0.12s ease-out; }
+        @keyframes fishHit {
+            0%  { transform: translateX(-50%) translateY(0); }
+            50% { transform: translateX(-50%) translateY(-5px); }
+            100%{ transform: translateX(-50%) translateY(0); }
         }
 
-        @keyframes slideDown {
-            from { 
-                opacity: 0; 
-                transform: translateX(-50%) translateY(-30px); 
-            }
-            to { 
-                opacity: 1; 
-                transform: translateX(-50%) translateY(0); 
-            }
-        }
-
-        /* 电子木鱼容器 */
-        .wooden-fish-container {
+        /* ============================================================
+           鼓槌 wrapper — 控制水平位置
+           ============================================================ */
+        .stick-wrap {
             position: fixed;
-            bottom: 25%;
+            bottom: 44vh;
             left: 50%;
-            transform: translateX(-50%);
-            width: 200px;
-            height: 160px;
-            z-index: 10;
-            cursor: pointer;
+            width: 36vw;
+            max-width: 290px;
+            z-index: 20;
+            pointer-events: none;
         }
 
-        /* 木鱼 SVG 样式 */
-        .wooden-fish {
+        /* ============================================================
+           鼓槌 — 控制旋转、翻转、敲击
+           ============================================================ */
+        .stick {
             width: 100%;
-            height: 100%;
-            filter: drop-shadow(0 10px 30px rgba(0,0,0,0.5));
-            transition: transform 0.1s;
+            margin-left: -18vw; /* 居中，以手柄端为轴 */
+            transform-origin: 88% 88%;
+            filter: drop-shadow(3px 6px 12px rgba(0,0,0,0.85));
+        }
+        .stick img { width: 100%; height: auto; display: block; }
+
+        /* ===== 右侧 idle（默认）====== */
+        .stick-wrap.side-right { transform: translateX(18vw); }
+        .stick-wrap.side-right .stick { animation: idleRight 4s ease-in-out infinite; }
+        @keyframes idleRight {
+            0%, 100% { transform: rotate(20deg); }
+            25%      { transform: rotate(23deg) translateY(-2px); }
+            50%      { transform: rotate(18deg) translateY(1px); }
+            75%      { transform: rotate(22deg) translateY(-1px); }
         }
 
-        .wooden-fish:active {
-            transform: scale(0.95);
+        /* ===== 左侧 idle ===== */
+        .stick-wrap.side-left { transform: translateX(-18vw); }
+        .stick-wrap.side-left .stick { animation: idleLeft 4s ease-in-out infinite; }
+        @keyframes idleLeft {
+            0%, 100% { transform: rotate(-20deg) scaleX(-1); }
+            25%      { transform: rotate(-23deg) scaleX(-1) translateY(-2px); }
+            50%      { transform: rotate(-18deg) scaleX(-1) translateY(1px); }
+            75%      { transform: rotate(-22deg) scaleX(-1) translateY(-1px); }
         }
 
-        .wooden-fish.tap {
-            animation: tapFish 0.15s ease;
+        /* ===== 点头敲击（右侧）===== */
+        .stick-wrap.side-right .stick.nod-strike {
+            animation: nodStrikeR 0.32s ease-out !important;
+        }
+        @keyframes nodStrikeR {
+            0%   { transform: rotate(20deg); }
+            30%  { transform: rotate(-15deg) translateY(8px); }
+            55%  { transform: rotate(6deg) translateY(-2px); }
+            75%  { transform: rotate(14deg) translateY(1px); }
+            100% { transform: rotate(20deg); }
         }
 
-        @keyframes tapFish {
-            0% { transform: scale(1); }
-            50% { transform: scale(0.9); }
-            100% { transform: scale(1); }
+        /* ===== 点头敲击（左侧）===== */
+        .stick-wrap.side-left .stick.nod-strike {
+            animation: nodStrikeL 0.32s ease-out !important;
+        }
+        @keyframes nodStrikeL {
+            0%   { transform: rotate(-20deg) scaleX(-1); }
+            30%  { transform: rotate(15deg) scaleX(-1) translateY(8px); }
+            55%  { transform: rotate(-6deg) scaleX(-1) translateY(-2px); }
+            75%  { transform: rotate(-14deg) scaleX(-1) translateY(1px); }
+            100% { transform: rotate(-20deg) scaleX(-1); }
         }
 
-        /* 木鱼槌 */
-        .mallet {
-            position: absolute;
-            top: -40px;
-            right: -30px;
-            width: 80px;
-            height: 80px;
-            transform-origin: 80% 80%;
-            animation: malletTap 1s ease-in-out infinite;
+        /* ===== 翻跟斗：wrapper横移到对侧，结束后触发nod strike ===== */
+        .stick-wrap.flip-to-right {
+            animation: flipToRight 0.55s cubic-bezier(0.4, 0, 0.2, 1) forwards !important;
+        }
+        .stick-wrap.flip-to-left {
+            animation: flipToLeft 0.55s cubic-bezier(0.4, 0, 0.2, 1) forwards !important;
+        }
+        @keyframes flipToLeft {
+            0%   { transform: translateX(18vw); }
+            100% { transform: translateX(-18vw); }
+        }
+        @keyframes flipToRight {
+            0%   { transform: translateX(-18vw); }
+            100% { transform: translateX(18vw); }
         }
 
-        @keyframes malletTap {
-            0%, 100% { transform: rotate(-20deg); }
-            50% { transform: rotate(10deg); }
+        /* ===== 完整翻跟斗（带旋转） ===== */
+        .stick-wrap.somersault-left {
+            animation: somersetL 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards !important;
+        }
+        .stick-wrap.somersault-left .stick {
+            animation: somersetLstick 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards !important;
+        }
+        @keyframes somersetL {
+            0%   { transform: translateX(18vw); }
+            50%  { transform: translateX(0vw); }
+            100% { transform: translateX(-18vw); }
+        }
+        @keyframes somersetLstick {
+            0%   { transform: rotate(20deg); }
+            25%  { transform: rotate(70deg) translateY(-4vh); }
+            50%  { transform: rotate(130deg) translateY(2vh); }
+            75%  { transform: rotate(200deg) translateY(-2vh); }
+            100% { transform: rotate(340deg) scaleX(-1); }
+        }
+        .stick-wrap.somersault-right {
+            animation: somersetR 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards !important;
+        }
+        .stick-wrap.somersault-right .stick {
+            animation: somersetRstick 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards !important;
+        }
+        @keyframes somersetR {
+            0%   { transform: translateX(-18vw); }
+            50%  { transform: translateX(0vw); }
+            100% { transform: translateX(18vw); }
+        }
+        @keyframes somersetRstick {
+            0%   { transform: rotate(-20deg) scaleX(-1); }
+            25%  { transform: rotate(-70deg) scaleX(-1) translateY(-4vh); }
+            50%  { transform: rotate(-130deg) scaleX(-1) translateY(2vh); }
+            75%  { transform: rotate(-200deg) scaleX(-1) translateY(-2vh); }
+            100% { transform: rotate(-340deg) scaleX(1); }
         }
 
-        /* 功德计数 */
-        .merit-counter {
+        /* 顶部UI */
+        .ui-top {
             position: fixed;
-            top: 22%;
-            left: 50%;
-            transform: translateX(-50%);
-            font-size: clamp(48px, 10vw, 80px);
-            font-weight: bold;
+            top: 0; left: 0;
+            width: 100vw;
+            z-index: 50;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-top: 22px;
+            pointer-events: none;
+        }
+        .title {
+            font-size: clamp(17px, 3.2vw, 26px);
+            color: #C8A84B;
+            letter-spacing: 10px;
+            text-shadow: 0 2px 16px rgba(0,0,0,0.8);
+            margin-bottom: 6px;
+        }
+        .merit {
+            display: flex;
+            align-items: baseline;
+            gap: 10px;
+        }
+        .merit-n {
+            font-size: clamp(80px, 18vw, 140px);
+            font-weight: 900;
             color: #FFD700;
-            text-shadow: 
-                0 0 20px rgba(255, 215, 0, 0.8),
-                0 0 40px rgba(255, 215, 0, 0.4);
-            z-index: 10;
+            text-shadow: 0 0 60px rgba(255,215,0,0.8), 0 0 120px rgba(255,215,0,0.3), 0 6px 0 rgba(0,0,0,0.5);
+            line-height: 1;
+            transition: transform 0.12s ease;
             font-family: 'SimHei', sans-serif;
         }
-
-        .merit-label {
-            font-size: clamp(20px, 4vw, 32px);
-            color: #D4AF37;
-            margin-left: 10px;
+        .merit-n.pop { transform: scale(1.30); }
+        .merit-t {
+            font-size: clamp(20px, 3.8vw, 34px);
+            color: #C8A84B;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.6);
+        }
+        .prog {
+            margin-top: 10px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .prog-track {
+            width: 150px; height: 5px;
+            background: rgba(255,255,255,0.12);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .prog-fill {
+            height: 100%;
+            background: linear-gradient(to right, #8B6914, #D4AF37, #FFD700);
+            border-radius: 3px;
+            transition: width 0.35s ease;
+            width: 0%;
+        }
+        .prog-label {
+            font-size: 12px;
+            color: rgba(200,168,75,0.65);
+            letter-spacing: 1px;
         }
 
-        /* 飘浮的功德+1 */
-        .floating-merit {
+        /* 飘字 */
+        .float-text {
             position: fixed;
-            font-size: 28px;
+            font-size: 44px;
             font-weight: bold;
+            font-family: '楷体', 'STKaiti', 'KaiTi', 'SimKai', serif;
             color: #FFD700;
-            text-shadow: 0 0 10px rgba(255, 215, 0, 0.8);
+            text-shadow: 0 0 20px rgba(255,215,0,1), 0 0 50px rgba(255,215,0,0.5), 0 3px 6px rgba(0,0,0,0.5);
             pointer-events: none;
             z-index: 100;
-            animation: floatUp 1.5s ease-out forwards;
+            animation: floatUp 1.4s ease-out forwards;
         }
-
         @keyframes floatUp {
-            0% {
-                opacity: 1;
-                transform: translateY(0) scale(1);
-            }
-            100% {
-                opacity: 0;
-                transform: translateY(-150px) scale(1.3);
-            }
+            0%   { opacity: 1; transform: translateY(0) scale(1); }
+            50%  { opacity: 1; transform: translateY(-80px) scale(1.2); }
+            100% { opacity: 0; transform: translateY(-180px) scale(1.35); }
         }
 
-        /* 底部提示 */
+        /* 反馈文字 */
+        .feedback {
+            position: fixed;
+            top: 38%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: clamp(28px, 5vw, 44px);
+            font-family: '楷体', 'STKaiti', 'KaiTi', 'SimKai', serif;
+            color: rgba(255,255,255,0.95);
+            text-shadow: 0 0 30px rgba(255,215,0,0.8), 0 0 60px rgba(255,215,0,0.3);
+            pointer-events: none;
+            z-index: 80;
+            opacity: 0;
+            transition: opacity 0.25s;
+        }
+        .feedback.show { opacity: 1; }
+
+        /* 提示栏 — 移到左上角 */
+        .hint {
+            position: fixed;
+            top: 22px; left: 24px;
+            z-index: 50;
+            pointer-events: none;
+        }
         .hint-text {
-            position: fixed;
-            bottom: 8%;
-            left: 50%;
-            transform: translateX(-50%);
-            font-size: clamp(14px, 3vw, 20px);
-            color: rgba(212, 175, 55, 0.8);
-            text-align: center;
-            z-index: 10;
-            opacity: 0;
-            animation: fadeInHint 1s ease 1s forwards;
+            font-size: clamp(18px, 3vw, 26px);
+            font-family: '楷体', 'STKaiti', 'KaiTi', 'SimKai', serif;
+            color: rgba(200,168,75,0.75);
+            letter-spacing: 3px;
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            line-height: 2;
         }
-
-        @keyframes fadeInHint {
-            to { opacity: 1; }
-        }
-
-        /* 佛系文案 */
-        .buddha-quote {
-            position: fixed;
-            top: 35%;
-            left: 50%;
-            transform: translateX(-50%);
-            font-size: clamp(16px, 3vw, 24px);
-            color: rgba(255, 255, 255, 0.9);
-            text-align: center;
-            max-width: 80%;
-            line-height: 1.6;
-            z-index: 10;
-            opacity: 0;
-            animation: fadeInQuote 1s ease 0.5s forwards;
-            text-shadow: 0 2px 10px rgba(0,0,0,0.5);
-        }
-
-        @keyframes fadeInQuote {
-            to { opacity: 1; }
-        }
-
-        /* 莲花装饰 */
+        /* 莲花角标 */
         .lotus {
             position: fixed;
-            font-size: 40px;
-            opacity: 0.3;
-            z-index: 1;
-            animation: lotusFloat 6s ease-in-out infinite;
+            bottom: 36px;
+            font-size: 108px;
+            z-index: 50;
+            pointer-events: none;
+            opacity: 0.5;
+            filter: drop-shadow(0 0 12px rgba(255,215,0,0.4));
         }
+        .lotus.left  { left: 24px; }
+        .lotus.right { right: 24px; }
 
-        @keyframes lotusFloat {
-            0%, 100% { transform: translateY(0) rotate(0deg); }
-            50% { transform: translateY(-20px) rotate(10deg); }
-        }
-
-        /* 祥云背景 */
-        .cloud-pattern {
+        /* 完成遮罩 */
+        .done {
             position: fixed;
-            width: 150px;
-            height: 60px;
-            background: radial-gradient(ellipse at center, rgba(212, 175, 55, 0.1) 0%, transparent 70%);
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            z-index: 300;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.5s;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0,0,0,0.35);
+        }
+        .done.show { opacity: 1; pointer-events: all; }
+        .done-card {
+            background: rgba(12,7,2,0.92);
+            border: 2px solid #C8A84B;
+            border-radius: 18px;
+            padding: 44px 60px;
+            text-align: center;
+            transform: scale(0.8);
+            transition: transform 0.4s cubic-bezier(0.34,1.56,0.64,1);
+        }
+        .done.show .done-card { transform: scale(1); }
+        .done-icon { font-size: 60px; margin-bottom: 10px; }
+        .done-title {
+            font-size: 34px;
+            color: #FFD700;
+            text-shadow: 0 0 20px rgba(255,215,0,0.5);
+            letter-spacing: 8px;
+            margin-bottom: 6px;
+        }
+        .done-sub { font-size: 15px; color: rgba(200,168,75,0.7); }
+
+        /* 加载层 */
+        .loading {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            z-index: 999;
+            background: radial-gradient(ellipse at center, #1a0e00 0%, #0a0500 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            transition: opacity 0.6s;
+        }
+        .loading.hidden { opacity: 0; pointer-events: none; }
+        .spinner {
+            width: 52px; height: 52px;
+            border: 3px solid rgba(200,168,75,0.12);
+            border-top-color: #C8A84B;
             border-radius: 50%;
-            z-index: 1;
+            animation: spin 1s linear infinite;
+            margin-bottom: 18px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loading-t { color: rgba(200,168,75,0.75); font-size: 14px; letter-spacing: 2px; }
+
+        /* 调试HUD */
+        .debug-hud {
+            position: fixed;
+            top: 12px; right: 12px;
+            background: rgba(0,0,0,0.70);
+            color: #00ff88;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.7;
+            padding: 8px 12px;
+            border-radius: 6px;
+            z-index: 500;
+            pointer-events: none;
+            max-width: 300px;
+            word-break: break-all;
         }
     </style>
 </head>
 <body>
-    <div class="bg-screenshot"></div>
 
-    <!-- 祥云装饰 -->
-    <div class="cloud-pattern" style="top: 15%; left: 5%;"></div>
-    <div class="cloud-pattern" style="top: 20%; right: 8%;"></div>
-    <div class="cloud-pattern" style="bottom: 30%; left: 10%;"></div>
-    <div class="cloud-pattern" style="bottom: 35%; right: 5%;"></div>
+    <!-- 深色庄严背景 -->
+    <div class="bg"></div>
 
-    <!-- 莲花装饰 -->
-    <div class="lotus" style="top: 10%; left: 8%; animation-delay: 0s;">🪷</div>
-    <div class="lotus" style="top: 15%; right: 10%; animation-delay: 1s;">🪷</div>
-    <div class="lotus" style="bottom: 20%; left: 5%; animation-delay: 2s;">🪷</div>
-    <div class="lotus" style="bottom: 25%; right: 8%; animation-delay: 3s;">🪷</div>
+    <!-- 木鱼图片 -->
+    <div class="fish" id="fish">
+        <img src="asset/muyu.webp" alt="木鱼">
+    </div>
 
-    <div class="overlay" id="overlay">
-        <div class="temple-border"></div>
-
-        <div class="header-text">赛博拜佛</div>
-
-        <div class="merit-counter">
-            <span id="meritCount">0</span>
-            <span class="merit-label">功德</span>
-        </div>
-
-        <div class="buddha-quote" id="quote">点击木鱼，休息积功德</div>
-
-        <!-- 电子木鱼 -->
-        <div class="wooden-fish-container" id="fishContainer">
-            <svg class="wooden-fish" viewBox="0 0 200 160" xmlns="http://www.w3.org/2000/svg">
-                <!-- 木鱼主体 -->
-                <ellipse cx="100" cy="100" rx="90" ry="55" fill="#8B4513"/>
-                <ellipse cx="100" cy="95" rx="85" ry="50" fill="#A0522D"/>
-                <ellipse cx="100" cy="90" rx="75" ry="40" fill="#CD853F"/>
-                
-                <!-- 木鱼纹理 -->
-                <ellipse cx="100" cy="85" rx="50" ry="25" fill="#DEB887" opacity="0.5"/>
-                
-                <!-- 木鱼嘴/缝隙 -->
-                <path d="M 60 85 Q 100 105 140 85" stroke="#5D3A1A" stroke-width="4" fill="none"/>
-                
-                <!-- 眼睛 -->
-                <circle cx="70" cy="75" r="8" fill="#3E2723"/>
-                <circle cx="72" cy="73" r="3" fill="#fff"/>
-                <circle cx="130" cy="75" r="8" fill="#3E2723"/>
-                <circle cx="132" cy="73" r="3" fill="#fff"/>
-                
-                <!-- 鱼鳞纹理 -->
-                <path d="M 85 100 Q 100 110 115 100" stroke="#8B4513" stroke-width="2" fill="none" opacity="0.5"/>
-                <path d="M 90 110 Q 100 118 110 110" stroke="#8B4513" stroke-width="2" fill="none" opacity="0.5"/>
-                
-                <!-- 尾巴 -->
-                <path d="M 185 100 L 195 85 L 195 115 Z" fill="#8B4513"/>
-            </svg>
-
-            <!-- 木鱼槌 -->
-            <svg class="mallet" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
-                <!-- 槌柄 -->
-                <rect x="35" y="20" width="10" height="40" fill="#8B4513" rx="2"/>
-                <!-- 槌头 -->
-                <circle cx="40" cy="20" r="15" fill="#D2691E"/>
-                <circle cx="40" cy="18" r="12" fill="#CD853F"/>
-            </svg>
-        </div>
-
-        <div class="hint-text">
-            🙏 每敲一下木鱼，功德+1，久坐-1<br>
-            点击任意位置关闭
+    <!-- 鼓槌 wrapper + inner stick -->
+    <div class="stick-wrap side-right" id="stickWrap">
+        <div class="stick" id="stick">
+            <img src="asset/drumStick.webp" alt="鼓槌">
         </div>
     </div>
 
-    <script>
-        let meritCount = 0;
-        const quotes = [
-            "休息是为了更好地搬砖",
-            "佛系打工，功德无量",
-            "敲鱼一时爽，一直敲一直爽",
-            "今日功德已满，可以下班了",
-            "赛博拜佛，物理休息",
-            "积功德，防脱发",
-            "敲木鱼，减压力",
-            "佛系一点，工资不变"
-        ];
+    <!-- 人脸五官轮廓画布 (FaceLandmarker 478点) -->
+    <canvas id="canvas"></canvas>
 
-        const fishContainer = document.getElementById('fishContainer');
-        const meritDisplay = document.getElementById('meritCount');
-        const quoteDisplay = document.getElementById('quote');
-        const overlay = document.getElementById('overlay');
+    <!-- 隐藏video -->
+    <video id="video" autoplay playsinline muted></video>
 
-        // 自动敲击
-        function autoTap() {
-            tapFish();
+    <!-- 顶部UI -->
+    <div class="ui-top">
+        <div class="title">赛博拜佛</div>
+        <div class="merit">
+            <span class="merit-n" id="meritN">0</span>
+            <span class="merit-t">功德</span>
+        </div>
+        <div class="prog">
+            <div class="prog-track"><div class="prog-fill" id="progFill"></div></div>
+            <span class="prog-label" id="progLabel">0 / 10</span>
+        </div>
+    </div>
+
+    <!-- 反馈文字 -->
+    <div class="feedback" id="feedback"></div>
+
+    <!-- 提示栏 — 左上角竖排 -->
+    <div class="hint">
+        <div class="hint-text">👆 点头敲木鱼<br>左右转头翻跟斗<br>点击任意处关闭</div>
+    </div>
+
+    <!-- 莲花角标 -->
+    <div class="lotus left">🪷</div>
+    <div class="lotus right">🪷</div>
+
+    <!-- 完成遮罩 -->
+    <div class="done" id="done">
+        <div class="done-card">
+            <div class="done-icon">🪷</div>
+            <div class="done-title">功德圆满</div>
+            <div class="done-sub" id="doneSub">头颈已放松，休息结束</div>
+        </div>
+    </div>
+
+    <!-- 调试HUD -->
+    <div class="debug-hud" id="debugHud">初始化中...</div>
+
+    <!-- 加载层 -->
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <div class="loading-t" id="loadText">正在加载人脸检测...</div>
+    </div>
+
+    <script type="module">
+    // ============================================================
+    // Config
+    // ============================================================
+    const TARGET    = 10;
+    const NOD_MAG   = 0.018;  // nod amplitude threshold
+    const TURN_MAG  = 0.008;  // head-turn x threshold — 降低灵敏度
+    const FLIP_DUR  = 700;    // flip animation duration ms
+    const NOD_CD    = 650;    // nod cooldown ms
+    const TURN_CD   = 900;    // flip cooldown ms
+
+    // ============================================================
+    // State
+    // ============================================================
+    let count     = 0;
+    let completed = false;
+    let stickSide = 'right';  // 'right' | 'left' | 'flipping'
+
+    // ============================================================
+    // DOM
+    // ============================================================
+    const video      = document.getElementById('video');
+    const canvas     = document.getElementById('canvas');
+    const ctx        = canvas.getContext('2d');
+    const meritN     = document.getElementById('meritN');
+    const progFill   = document.getElementById('progFill');
+    const progLabel  = document.getElementById('progLabel');
+    const feedback   = document.getElementById('feedback');
+    const stickWrap  = document.getElementById('stickWrap');
+    const stick      = document.getElementById('stick');
+    const fish       = document.getElementById('fish');
+    const doneEl     = document.getElementById('done');
+    const loadingEl  = document.getElementById('loading');
+    const loadText   = document.getElementById('loadText');
+
+    function resize() {
+        canvas.width  = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    // ============================================================
+    // Coordinate helpers (cover-mode, mirrored)
+    // ============================================================
+    function mx(x) { return canvas.width  - x; }
+    function my(y) { return y * canvas.height; }
+
+    // ============================================================
+    // Feedback
+    // ============================================================
+    let fbTimer;
+    function fb(text, ms = 1500) {
+        feedback.textContent = text;
+        feedback.classList.add('show');
+        if (fbTimer) clearTimeout(fbTimer);
+        fbTimer = setTimeout(() => feedback.classList.remove('show'), ms);
+    }
+
+    function spawnFloat(x, y) {
+        const el = document.createElement('div');
+        el.className = 'float-text';
+        el.textContent = '功德+1';
+        el.style.left = (x + (Math.random()-0.5)*100) + 'px';
+        el.style.top  = y + 'px';
+        document.body.appendChild(el);
+        setTimeout(() => el.remove(), 1400);
+    }
+
+    // ============================================================
+    // 木鱼震动
+    // ============================================================
+    function muyuHit() {
+        fish.classList.remove('hit');
+        void fish.offsetWidth;
+        fish.classList.add('hit');
+        setTimeout(() => fish.classList.remove('hit'), 130);
+    }
+
+    // ============================================================
+    // Strike action（共用：nod / flip 都调用这个）
+    // ============================================================
+    function doMerit() {
+        // 功德+1
+        count++;
+        meritN.textContent = count;
+        meritN.classList.add('pop');
+        setTimeout(() => meritN.classList.remove('pop'), 140);
+
+        progFill.style.width  = Math.min(count/TARGET*100,100)+'%';
+        progLabel.textContent = `${count} / ${TARGET}`;
+
+        // 飘字
+        spawnFloat(window.innerWidth*0.5, window.innerHeight*0.30);
+
+        // 音效
+        playMuyuSound();
+
+        // 随机反馈
+        const msgs = ['善哉','功德+1','继续','好','阿弥陀佛','施主','佛祖显灵'];
+        fb(msgs[Math.floor(Math.random()*msgs.length)]);
+
+        if (count >= TARGET && !completed) onComplete();
+    }
+
+    // ============================================================
+    // 音效
+    // ============================================================
+    function playMuyuSound() {
+        try {
+            const ac = new (window.AudioContext || window.webkitAudioContext)();
+            const osc  = ac.createOscillator();
+            const gain = ac.createGain();
+            const filt = ac.createBiquadFilter();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(720, ac.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(360, ac.currentTime + 0.14);
+            filt.type = 'bandpass';
+            filt.frequency.value = 560;
+            filt.Q.value = 3.5;
+            gain.gain.setValueAtTime(0.38, ac.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.22);
+            osc.connect(filt); filt.connect(gain); gain.connect(ac.destination);
+            osc.start(ac.currentTime);
+            osc.stop(ac.currentTime + 0.25);
+        } catch(_) {}
+    }
+
+    function playDoneSound() {
+        try {
+            const ac = new (window.AudioContext || window.webkitAudioContext)();
+            [523,659,784,1047].forEach((f,i) => {
+                const o=ac.createOscillator(), g=ac.createGain();
+                o.type='sine'; o.frequency.value=f;
+                g.gain.setValueAtTime(0.18,ac.currentTime+i*0.18);
+                g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+i*0.18+0.4);
+                o.connect(g); g.connect(ac.destination);
+                o.start(ac.currentTime+i*0.18);
+                o.stop(ac.currentTime+i*0.18+0.5);
+            });
+        } catch(_) {}
+    }
+
+    async function onComplete() {
+        completed = true;
+        playDoneSound();
+        doneEl.classList.add('show');
+        fb('功德圆满！', 3000);
+        setTimeout(async () => {
+            try { await fetch('http://localhost:3721/api/scene-complete',{method:'POST'}); } catch(_) {}
+            setTimeout(() => window.close(), 2000);
+        }, 2500);
+    }
+
+    // ============================================================
+    // 点头敲击（当前侧的 nod strike 动画）
+    // ============================================================
+    function nodStrike() {
+        if (stickSide === 'flipping') return;
+        stick.classList.remove('nod-strike');
+        void stick.offsetWidth;
+        stick.classList.add('nod-strike');
+        stick.addEventListener('animationend', () => stick.classList.remove('nod-strike'), { once: true });
+        muyuHit();
+        doMerit();
+    }
+
+    // ============================================================
+    // 翻跟斗（左/右转头时调用）
+    // ============================================================
+    let flipTimer = null;
+
+    function flipTo(newSide) {
+        if (completed) return;
+        if (stickSide === 'flipping') return;
+        if (stickSide === newSide) return;
+
+        stickSide = 'flipping';
+        stickWrap.classList.remove('side-right', 'side-left', 'flip-to-left', 'flip-to-right', 'somersault-left', 'somersault-right');
+        stick.classList.remove('nod-strike');
+
+        const animClass = newSide === 'left' ? 'somersault-left' : 'somersault-right';
+        stickWrap.classList.add(animClass);
+
+        // 防重复敲击：动画触发两次，用 flag 保护
+        let struck = false;
+        const onEnd = () => {
+            if (struck) return;
+            struck = true;
+            stickWrap.classList.remove('somersault-left', 'somersault-right');
+            stickWrap.classList.add(newSide === 'left' ? 'side-left' : 'side-right');
+            stickSide = newSide;
+            nodStrike(); // 到位后敲一下
+        };
+        stickWrap.addEventListener('animationend', onEnd);
+        setTimeout(() => {
+            stickWrap.removeEventListener('animationend', onEnd);
+            if (stickSide === 'flipping') {
+                stickSide = newSide;
+                stickWrap.classList.remove('somersault-left', 'somersault-right');
+                stickWrap.classList.add(newSide === 'left' ? 'side-left' : 'side-right');
+                if (!struck) { struck = true; nodStrike(); }
+            }
+        }, FLIP_DUR + 150);
+    }
+
+    // ============================================================
+    // 调试日志
+    // ============================================================
+    let dbgLines = [];
+    let frameCount = 0;
+    function dbg(text) {
+        dbgLines.push(text);
+        if (dbgLines.length > 12) dbgLines.shift();
+        const hud = document.getElementById('debugHud');
+        if (hud) hud.textContent = dbgLines.join('\n');
+    }
+
+    // ============================================================
+    // 双EMA点头检测（y轴）
+    // ============================================================
+    let slowY = null, fastY = null;
+    let nodPeak = 0, nodCooldown = 0, nodWasAbove = false;
+
+    function processNod(rawY) {
+        if (completed) return;
+        if (now() - nodCooldown < NOD_CD) return;
+
+        if (slowY === null) { slowY = rawY; fastY = rawY; return; }
+
+        fastY = 0.60 * rawY + 0.40 * fastY;
+        slowY = 0.98 * slowY + 0.02 * rawY;
+        const delta = fastY - slowY; // >0 = 低头
+
+        if (delta > nodPeak) nodPeak = delta;
+
+        if (delta >= NOD_MAG && !nodWasAbove) {
+            nodWasAbove = true;
+            nodCooldown = now();
+            nodPeak = 0;
+            if (stickSide !== 'flipping') nodStrike();
+            return;
         }
 
-        // 敲击木鱼
-        function tapFish() {
-            meritCount++;
-            meritDisplay.textContent = meritCount;
+        if (delta < NOD_MAG * 0.3) {
+            nodWasAbove = false;
+            nodPeak = nodPeak * 0.85;
+        }
+    }
 
-            // 木鱼动画
-            const fish = document.querySelector('.wooden-fish');
-            fish.classList.remove('tap');
-            void fish.offsetWidth; // 触发重排
-            fish.classList.add('tap');
+    // ============================================================
+    // 双EMA转头检测（x轴）
+    // ============================================================
+    let slowX = null, fastX = null;
+    let turnCooldown = 0;
 
-            // 创建飘浮的功德+1
-            createFloatingMerit();
+    function processTurn(rawX) {
+        if (completed) return;
+        if (stickSide === 'flipping') return;
+        if (now() - turnCooldown < TURN_CD) return;
 
-            // 播放木鱼声
-            playWoodFishSound();
+        if (slowX === null) { slowX = rawX; fastX = rawX; return; }
 
-            // 每10下换一句文案
-            if (meritCount % 5 === 0) {
-                quoteDisplay.textContent = quotes[Math.floor(Math.random() * quotes.length)];
+        fastX = 0.70 * rawX + 0.30 * fastX;  // 加快响应
+        slowX = 0.99 * slowX + 0.01 * rawX;  // 基线很慢
+        const delta = fastX - slowX;
+        const absDelta = Math.abs(delta);
+
+        if (absDelta >= TURN_MAG) {
+            const targetSide = delta > 0 ? 'left' : 'right';
+            const sameSide = (targetSide === stickSide);
+            turnCooldown = now();
+            dbg(`TURN Δ=${delta.toFixed(4)} tgt=${targetSide} cur=${stickSide} flip=${!sameSide}`);
+
+            if (!sameSide) {
+                flipTo(targetSide);
             }
         }
 
-        // 创建飘浮的功德+1
-        function createFloatingMerit() {
-            const floating = document.createElement('div');
-            floating.className = 'floating-merit';
-            floating.textContent = '功德+1';
-            floating.style.left = (50 + (Math.random() - 0.5) * 20) + '%';
-            floating.style.bottom = '35%';
-            overlay.appendChild(floating);
-
-            setTimeout(() => floating.remove(), 1500);
+        if (frameCount % 30 === 0) {
+            dbg(`x: Δ=${delta.toFixed(4)} side=${stickSide} flipping=${stickSide==='flipping'}`);
         }
+    }
 
-        // 播放木鱼声
-        function playWoodFishSound() {
+    // 兼容
+    const now = () => Date.now();
+
+    // ============================================================
+    // Face contour — 478 points from FaceLandmarker
+    // ============================================================
+    const FACE_OVAL     = [10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109];
+    const LEFT_EYE     = [362,382,381,380,374,373,390,249,263,466,388,387,386,385,384,398];
+    const RIGHT_EYE    = [33,7,163,144,145,153,154,155,133,173,157,158,159,160,161,246];
+    const LEFT_EYEBROW = [276,283,282,295,285];
+    const RIGHT_EYEBROW= [46,53,52,65,55];
+    const UPPER_LIP    = [61,146,91,181,84,17,314,405,321,375,291];
+    const LOWER_LIP    = [61,84,17,314,405,321,375,291,78,95,88,178,87,14,317,402,318,324];
+    const NOSE_BRIDGE  = [168,6,195,197];
+    const NOSE_BOTTOM  = [98,327,4,134,51,306];
+
+    // Cover-mode 坐标转换（保持视频比例，避免拉伸）
+    function getCoverScale() {
+        const vw = video.videoWidth || 640;
+        const vh = video.videoHeight || 480;
+        const cw = canvas.width, ch = canvas.height;
+        const videoAspect = vw / vh;
+        const canvasAspect = cw / ch;
+        
+        if (canvasAspect > videoAspect) {
+            // Canvas 更宽，视频填满高度，两侧裁剪
+            const scale = ch / vh;
+            const offsetX = (cw - vw * scale) / 2;
+            return { scale, offsetX, offsetY: 0 };
+        } else {
+            // Canvas 更高，视频填满宽度，上下裁剪
+            const scale = cw / vw;
+            const offsetY = (ch - vh * scale) / 2;
+            return { scale, offsetX: 0, offsetY };
+        }
+    }
+
+    function drawContour(indices, lm, color, fillColor, lineW) {
+        const pts = indices.map(i => lm[i]).filter(p => p && p.x > 0 && p.x < 1);
+        if (pts.length < 2) return;
+        
+        const vw = video.videoWidth || 640;
+        const vh = video.videoHeight || 480;
+        const { scale, offsetX, offsetY } = getCoverScale();
+        
+        // 转换函数：归一化坐标 → canvas 坐标（cover-mode + 镜像）
+        const toCanvasX = (nx) => canvas.width - (nx * vw * scale + offsetX);
+        const toCanvasY = (ny) => ny * vh * scale + offsetY;
+        
+        ctx.beginPath();
+        ctx.moveTo(toCanvasX(pts[0].x), toCanvasY(pts[0].y));
+        for (let i = 1; i < pts.length; i++) {
+            ctx.lineTo(toCanvasX(pts[i].x), toCanvasY(pts[i].y));
+        }
+        if (fillColor) { ctx.fillStyle = fillColor; ctx.fill(); }
+        if (color) {
+            ctx.strokeStyle = color;
+            ctx.lineWidth = lineW || 1.5;
+            ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+            ctx.stroke();
+        }
+    }
+
+    function drawFaceContours(lm) {
+        if (!lm || lm.length < 478) return;
+        drawContour(FACE_OVAL,     lm, 'rgba(200,168,75,0.55)', 'rgba(200,168,75,0.06)', 2.5);
+        drawContour(LEFT_EYEBROW,  lm, 'rgba(180,140,60,0.80)', null, 3);
+        drawContour(RIGHT_EYEBROW, lm, 'rgba(180,140,60,0.80)', null, 3);
+        drawContour(LEFT_EYE,      lm, 'rgba(200,168,75,0.75)', 'rgba(200,168,75,0.15)', 2.5);
+        drawContour(RIGHT_EYE,     lm, 'rgba(200,168,75,0.75)', 'rgba(200,168,75,0.15)', 2.5);
+        drawContour(NOSE_BRIDGE,   lm, 'rgba(200,168,75,0.55)', null, 2);
+        drawContour(NOSE_BOTTOM,   lm, 'rgba(200,168,75,0.65)', null, 2.5);
+        drawContour(UPPER_LIP,     lm, 'rgba(220,160,100,0.70)', 'rgba(220,160,100,0.10)', 2.5);
+        drawContour(LOWER_LIP,     lm, 'rgba(220,160,100,0.65)', 'rgba(220,160,100,0.08)', 2.5);
+    }
+
+    // ============================================================
+    // MediaPipe
+    // ============================================================
+    let poseLandmarker = null;
+    let faceLandmarker = null;
+    const POSE = { NOSE:0 };
+
+    function smoothPt(cur, prev, a = 0.6) {
+        if (!prev) return cur;
+        return { x: a*cur.x+(1-a)*prev.x, y: a*cur.y+(1-a)*prev.y, z: a*cur.z+(1-a)*prev.z };
+    }
+    let prevPose = null;
+
+    async function initMediaPipe() {
+        try {
+            const { FilesetResolver, PoseLandmarker, FaceLandmarker } = await import(
+                'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/vision_bundle.js'
+            );
+            loadText.textContent = '加载 Vision 模块...';
+            const vision = await FilesetResolver.forVisionTasks(
+                'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
+            );
+
+            loadText.textContent = '加载动作模型...';
+            poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
+                baseOptions: { modelAssetPath: '/models/pose_landmarker_lite.task', delegate: 'CPU' },
+                runningMode: 'VIDEO', numPoses: 1,
+                minPoseDetectionConfidence: 0.45, minPosePresenceConfidence: 0.45, minTrackingConfidence: 0.45
+            });
+
+            loadText.textContent = '加载人脸模型...';
             try {
-                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                const now = audioCtx.currentTime;
+                faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
+                    baseOptions: { modelAssetPath: '/models/face_landmarker.task', delegate: 'CPU' },
+                    runningMode: 'IMAGE', numFaces: 1
+                });
+            } catch(e) {
+                console.warn('[Face] load failed:', e.message);
+                faceLandmarker = null;
+            }
+            loadText.textContent = '启动摄像头...';
+        } catch(e) {
+            loadText.textContent = '加载失败: ' + e.message;
+            console.error('[MediaPipe]', e);
+        }
+    }
 
-                // 木鱼声 - 短促的中频音
-                const osc = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
-                const filter = audioCtx.createBiquadFilter();
+    async function startCamera() {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: { width:{ideal:640}, height:{ideal:480}, facingMode:'user' }
+        });
+        video.srcObject = stream;
+        await video.play();
+    }
 
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(800, now);
-                osc.frequency.exponentialRampToValueAtTime(400, now + 0.1);
-
-                filter.type = 'bandpass';
-                filter.frequency.value = 600;
-                filter.Q.value = 5;
-
-                gain.gain.setValueAtTime(0.3, now);
-                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
-
-                osc.connect(filter);
-                filter.connect(gain);
-                gain.connect(audioCtx.destination);
-
-                osc.start(now);
-                osc.stop(now + 0.15);
-            } catch (e) {}
+    // ============================================================
+    // 主循环
+    // ============================================================
+    function detectLoop() {
+        if (!poseLandmarker || !video.videoWidth || completed) {
+            requestAnimationFrame(detectLoop);
+            return;
         }
 
-        // 自动敲击
-        const autoTapInterval = setInterval(autoTap, 800);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        frameCount++;
 
-        // 点击木鱼额外加功德
-        fishContainer.addEventListener('click', (e) => {
-            e.stopPropagation();
-            tapFish();
-        });
+        try {
+            const results = poseLandmarker.detectForVideo(video, performance.now());
+            const hasPose = results?.landmarks?.length > 0;
 
-        // 点击关闭
-        overlay.addEventListener('click', () => {
-            clearInterval(autoTapInterval);
-            overlay.style.transition = 'opacity 0.3s';
-            overlay.style.opacity = '0';
-            setTimeout(() => window.close(), 300);
-        });
+            if (hasPose) {
+                const rawLm = results.landmarks[0];
+                const lm = rawLm.map((pt, i) => smoothPt(pt, prevPose ? prevPose[i] : null, 0.6));
+                prevPose = lm;
+
+                const nose = lm[POSE.NOSE];
+                if (nose) {
+                    processNod(nose.y);    // 上下点头
+                    processTurn(nose.x);   // 左右转头
+                }
+
+                if (frameCount % 60 === 0) {
+                    dbg(`pose ✓ side=${stickSide} nod=${nodWasAbove?'Y':'n'} turn=${turnWasAbove?'Y':'n'}`);
+                }
+            } else {
+                prevPose = null;
+            }
+
+            // FaceLandmarker 脸轮廓
+            if (faceLandmarker) {
+                try {
+                    const faces = faceLandmarker.detect(video);
+                    const marks = faces?.faceLandmarks?.[0] || faces?.landmarks?.[0];
+                    if (marks) drawFaceContours(marks);
+                } catch(_) {}
+            }
+        } catch(e) {
+            if (frameCount % 60 === 0) dbg('detect err: ' + e.message);
+        }
+
+        requestAnimationFrame(detectLoop);
+    }
+
+    // ============================================================
+    // Bootstrap
+    // ============================================================
+    (async () => {
+        try {
+            await initMediaPipe();
+            await startCamera();
+            loadingEl.classList.add('hidden');
+            setTimeout(() => loadingEl.remove(), 700);
+            fb('点头敲木鱼，左右转头翻跟斗 🪷', 3000);
+            detectLoop();
+        } catch(err) {
+            loadText.textContent = '启动失败: ' + err.message;
+        }
+    })();
+
+    // ============================================================
+    // 点击关闭
+    // ============================================================
+    document.addEventListener('click', () => {
+        if (completed) return;
+        doneEl.classList.add('show');
+        fb('随喜赞叹', 1500);
+        setTimeout(async () => {
+            try { await fetch('http://localhost:3721/api/scene-complete',{method:'POST'}); } catch(_) {}
+            setTimeout(() => window.close(), 1500);
+        }, 1800);
+    });
     </script>
 </body>
 </html>

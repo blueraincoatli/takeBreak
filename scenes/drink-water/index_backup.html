@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>喝水提醒</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            overflow: hidden;
+            font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            background: #0a0a0a;
+        }
+
+        /* 深色背景 */
+        .bg {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            z-index: 0;
+            background:
+                radial-gradient(ellipse 80% 60% at 50% 120%, rgba(30,80,120,0.3) 0%, transparent 70%),
+                linear-gradient(180deg, #050505 0%, #0a1520 50%, #050505 100%);
+        }
+
+        #video { display: none; }
+
+        #canvas {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        /* 顶部UI */
+        .ui-top {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw;
+            z-index: 50;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-top: 30px;
+            pointer-events: none;
+        }
+
+        .title {
+            font-size: clamp(16px, 3vw, 24px);
+            color: #5DD3FF;
+            letter-spacing: 6px;
+            text-shadow: 0 2px 20px rgba(93,211,255,0.5);
+            margin-bottom: 8px;
+        }
+
+        .status {
+            font-size: clamp(28px, 6vw, 48px);
+            font-weight: 900;
+            color: #7FEBFF;
+            text-shadow: 0 0 40px rgba(127,235,255,0.6), 0 4px 0 rgba(0,0,0,0.5);
+            margin-bottom: 15px;
+            letter-spacing: 2px;
+        }
+
+        .progress-bar {
+            width: 180px;
+            height: 4px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #3AA0D8, #5DD3FF, #7FEBFF);
+            border-radius: 2px;
+            transition: width 0.4s ease;
+            width: 0%;
+        }
+
+        .progress-label {
+            font-size: 13px;
+            color: rgba(127,235,255,0.6);
+            letter-spacing: 1px;
+        }
+
+        /* 底部提示 */
+        .hint {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 50;
+            pointer-events: none;
+            text-align: center;
+        }
+
+        .hint-text {
+            font-size: clamp(12px, 2.5vw, 16px);
+            color: rgba(127,235,255,0.5);
+            letter-spacing: 2px;
+        }
+
+        /* 左上角步骤 */
+        .steps-panel {
+            position: fixed;
+            top: 30px; left: 30px;
+            z-index: 50;
+            pointer-events: none;
+        }
+
+        .step-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+            opacity: 0.4;
+            transition: opacity 0.3s, transform 0.3s;
+        }
+
+        .step-item.active {
+            opacity: 1;
+            transform: translateX(5px);
+        }
+
+        .step-item.done {
+            opacity: 0.6;
+        }
+
+        .step-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: rgba(93,211,255,0.1);
+            border: 2px solid rgba(93,211,255,0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            transition: all 0.3s;
+        }
+
+        .step-item.active .step-icon {
+            background: rgba(93,211,255,0.2);
+            border-color: #5DD3FF;
+            box-shadow: 0 0 20px rgba(93,211,255,0.4);
+        }
+
+        .step-item.done .step-icon {
+            background: rgba(100,255,180,0.2);
+            border-color: #6FFFAA;
+        }
+
+        .step-label {
+            font-size: 14px;
+            color: rgba(127,235,255,0.7);
+            letter-spacing: 1px;
+        }
+
+        /* 完成遮罩 */
+        .done-overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            z-index: 300;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.5s;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: rgba(5,5,5,0.6);
+        }
+
+        .done-overlay.show { opacity: 1; pointer-events: all; }
+
+        .done-card {
+            background: rgba(10,20,30,0.95);
+            border: 2px solid #5DD3FF;
+            border-radius: 20px;
+            padding: 40px 60px;
+            text-align: center;
+            transform: scale(0.8);
+            transition: transform 0.4s cubic-bezier(0.34,1.56,0.64,1);
+        }
+
+        .done-overlay.show .done-card { transform: scale(1); }
+
+        .done-icon { font-size: 50px; margin-bottom: 15px; }
+
+        .done-title {
+            font-size: 28px;
+            color: #5DD3FF;
+            text-shadow: 0 0 20px rgba(93,211,255,0.5);
+            letter-spacing: 4px;
+            margin-bottom: 8px;
+        }
+
+        .done-sub { font-size: 13px; color: rgba(127,235,255,0.6); }
+
+        /* 加载层 */
+        .loading {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            z-index: 999;
+            background: #050505;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            transition: opacity 0.5s;
+        }
+
+        .loading.hidden { opacity: 0; pointer-events: none; }
+
+        .spinner {
+            width: 40px; height: 40px;
+            border: 3px solid rgba(93,211,255,0.15);
+            border-top-color: #5DD3FF;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 15px;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .loading-t { color: rgba(127,235,255,0.6); font-size: 13px; letter-spacing: 2px; }
+
+        /* 调试HUD */
+        .debug-hud {
+            position: fixed;
+            bottom: 15px; right: 15px;
+            background: rgba(0,0,0,0.75);
+            color: #5DD3FF;
+            font-family: 'Consolas', monospace;
+            font-size: 11px;
+            line-height: 1.5;
+            padding: 10px 12px;
+            border-radius: 6px;
+            z-index: 500;
+            pointer-events: none;
+            max-width: 280px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="bg"></div>
+
+    <!-- Canvas -->
+    <canvas id="canvas"></canvas>
+    <video id="video" autoplay playsinline muted></video>
+
+    <!-- 顶部状态 -->
+    <div class="ui-top">
+        <div class="title">补水提醒</div>
+        <div class="status" id="status">去倒杯水吧</div>
+        <div class="progress-bar">
+            <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <div class="progress-label" id="progressLabel">0 / 3 步骤</div>
+    </div>
+
+    <!-- 左侧步骤 -->
+    <div class="steps-panel">
+        <div class="step-item active" id="stepLeave">
+            <div class="step-icon">🚶</div>
+            <div class="step-label">离开座位</div>
+        </div>
+        <div class="step-item" id="stepReturn">
+            <div class="step-icon">🪑</div>
+            <div class="step-label">回来坐下</div>
+        </div>
+        <div class="step-item" id="stepDrink">
+            <div class="step-icon">🥤</div>
+            <div class="step-label">喝水 ×2</div>
+        </div>
+    </div>
+
+    <!-- 底部提示 -->
+    <div class="hint">
+        <div class="hint-text" id="hintText">点击任意处跳过</div>
+    </div>
+
+    <!-- 完成遮罩 -->
+    <div class="done-overlay" id="doneOverlay">
+        <div class="done-card">
+            <div class="done-icon">💧</div>
+            <div class="done-title">补水完成</div>
+            <div class="done-sub">身体水分已补充</div>
+        </div>
+    </div>
+
+    <!-- 调试 -->
+    <div class="debug-hud" id="debugHud">初始化...</div>
+
+    <!-- 加载 -->
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <div class="loading-t" id="loadText">加载检测模型...</div>
+    </div>
+
+    <script type="module">
+    // ============================================================
+    // Config
+    // ============================================================
+    const DRINK_TARGET     = 2;
+    const LEAVE_THRESHOLD   = 0.65;
+    const RETURN_THRESHOLD  = 0.45;
+    const DRINK_DIST        = 0.30;
+    const LEAVE_TIME_MIN    = 2500;
+    const DRINK_COOLDOWN    = 1200;
+
+    // ============================================================
+    // State
+    // ============================================================
+    let state = 0;
+    let leaveTime = 0;
+    let lastDrinkTime = 0;
+    let drinkCount = 0;
+
+    // ============================================================
+    // DOM
+    // ============================================================
+    const video       = document.getElementById('video');
+    const canvas      = document.getElementById('canvas');
+    const ctx         = canvas.getContext('2d');
+    const status      = document.getElementById('status');
+    const progressFill= document.getElementById('progressFill');
+    const progressLabel= document.getElementById('progressLabel');
+    const doneOverlay = document.getElementById('doneOverlay');
+    const loadingEl   = document.getElementById('loading');
+    const loadText    = document.getElementById('loadText');
+    const hintText    = document.getElementById('hintText');
+
+    const stepLeave   = document.getElementById('stepLeave');
+    const stepReturn  = document.getElementById('stepReturn');
+    const stepDrink   = document.getElementById('stepDrink');
+
+    function resize() {
+        canvas.width  = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    // ============================================================
+    // Helpers
+    // ============================================================
+    function dist3D(a, b) {
+        const dx = a.x - b.x, dy = a.y - b.y, dz = (a.z||0) - (b.z||0);
+        return Math.sqrt(dx*dx + dy*dy + dz*dz);
+    }
+
+    function now() { return Date.now(); }
+
+    function updateProgress() {
+        const pct = state >= 3 ? 100 : state * 33 + (state === 2 ? drinkCount * 16 : 0);
+        progressFill.style.width = pct + '%';
+        progressLabel.textContent = `${Math.min(state + (state === 2 ? drinkCount : 0), 3)} / 3 步骤`;
+    }
+
+    function setStepActive(s) {
+        stepLeave.classList.remove('active', 'done');
+        stepReturn.classList.remove('active', 'done');
+        stepDrink.classList.remove('active', 'done');
+        if (s > 0) stepLeave.classList.add('done');
+        if (s > 1) stepReturn.classList.add('done');
+        if (s === 0) stepLeave.classList.add('active');
+        if (s === 1) stepReturn.classList.add('active');
+        if (s === 2) stepDrink.classList.add('active');
+    }
+
+    // ============================================================
+    // Sound
+    // ============================================================
+    function playDrinkSound() {
+        try {
+            const ac = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ac.createOscillator();
+            const gain = ac.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(500, ac.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(250, ac.currentTime + 0.12);
+            gain.gain.setValueAtTime(0.2, ac.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.18);
+            osc.connect(gain);
+            gain.connect(ac.destination);
+            osc.start();
+            osc.stop(ac.currentTime + 0.2);
+        } catch(_) {}
+    }
+
+    function playDoneSound() {
+        try {
+            const ac = new (window.AudioContext || window.webkitAudioContext)();
+            [523, 659, 784, 1047].forEach((f, i) => {
+                const o = ac.createOscillator(), g = ac.createGain();
+                o.type = 'sine';
+                o.frequency.value = f;
+                g.gain.setValueAtTime(0.12, ac.currentTime + i * 0.15);
+                g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + i * 0.15 + 0.3);
+                o.connect(g);
+                g.connect(ac.destination);
+                o.start(ac.currentTime + i * 0.15);
+                o.stop(ac.currentTime + i * 0.15 + 0.4);
+            });
+        } catch(_) {}
+    }
+
+    // ============================================================
+    // Face contour
+    // ============================================================
+    const FACE_OVAL     = [10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109];
+    const LEFT_EYE     = [362,382,381,380,374,373,390,249,263,466,388,387,386,385,384,398];
+    const RIGHT_EYE    = [33,7,163,144,145,153,154,155,133,173,157,158,159,160,161,246];
+    const LEFT_EYEBROW = [276,283,282,295,285];
+    const RIGHT_EYEBROW= [46,53,52,65,55];
+    const UPPER_LIP    = [61,146,91,181,84,17,314,405,321,375,291];
+    const LOWER_LIP    = [61,84,17,314,405,321,375,291,78,95,88,178,87,14,317,402,318,324];
+    const NOSE_BRIDGE  = [168,6,195,197];
+    const NOSE_BOTTOM  = [98,327,4,134,51,306];
+
+    // ============================================================
+    // Hand contour
+    // ============================================================
+    const HAND_PALM    = [0,1,5,9,13,17,0];
+    const THUMB        = [1,2,3,4];
+    const INDEX_FINGER = [5,6,7,8];
+    const MIDDLE_FINGER= [9,10,11,12];
+    const RING_FINGER  = [13,14,15,16];
+    const PINKY        = [17,18,19,20];
+
+    function getCoverScale() {
+        const vw = video.videoWidth || 640;
+        const vh = video.videoHeight || 480;
+        const cw = canvas.width, ch = canvas.height;
+        const videoAspect = vw / vh;
+        const canvasAspect = cw / ch;
+        
+        if (canvasAspect > videoAspect) {
+            const scale = ch / vh;
+            const offsetX = (cw - vw * scale) / 2;
+            return { scale, offsetX, offsetY: 0 };
+        } else {
+            const scale = cw / vw;
+            const offsetY = (ch - vh * scale) / 2;
+            return { scale, offsetX: 0, offsetY };
+        }
+    }
+
+    function drawContour(indices, lm, color, fillColor, lineW) {
+        const pts = indices.map(i => lm[i]).filter(p => p && p.x > 0 && p.x < 1);
+        if (pts.length < 2) return;
+        
+        const vw = video.videoWidth || 640;
+        const vh = video.videoHeight || 480;
+        const { scale, offsetX, offsetY } = getCoverScale();
+        
+        const toCanvasX = (nx) => canvas.width - (nx * vw * scale + offsetX);
+        const toCanvasY = (ny) => ny * vh * scale + offsetY;
+        
+        ctx.beginPath();
+        ctx.moveTo(toCanvasX(pts[0].x), toCanvasY(pts[0].y));
+        for (let i = 1; i < pts.length; i++) {
+            ctx.lineTo(toCanvasX(pts[i].x), toCanvasY(pts[i].y));
+        }
+        if (fillColor) { ctx.fillStyle = fillColor; ctx.fill(); }
+        if (color) {
+            ctx.strokeStyle = color;
+            ctx.lineWidth = lineW || 2;
+            ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+            ctx.stroke();
+        }
+    }
+
+    function drawFaceContours(lm) {
+        if (!lm || lm.length < 478) return;
+        const c = 'rgba(93,211,255,0.5)';
+        const f = 'rgba(93,211,255,0.06)';
+        const d = 'rgba(70,180,220,0.65)';
+        
+        drawContour(FACE_OVAL,     lm, c, f, 2);
+        drawContour(LEFT_EYEBROW,  lm, d, null, 2.5);
+        drawContour(RIGHT_EYEBROW, lm, d, null, 2.5);
+        drawContour(LEFT_EYE,      lm, c, 'rgba(93,211,255,0.12)', 1.5);
+        drawContour(RIGHT_EYE,     lm, c, 'rgba(93,211,255,0.12)', 1.5);
+        drawContour(NOSE_BRIDGE,   lm, c, null, 1.5);
+        drawContour(NOSE_BOTTOM,   lm, d, null, 2);
+        drawContour(UPPER_LIP,     lm, d, 'rgba(100,200,255,0.1)', 2);
+        drawContour(LOWER_LIP,     lm, d, 'rgba(100,200,255,0.08)', 1.5);
+    }
+
+    function drawHandContours(lm, isLeft) {
+        if (!lm || lm.length < 21) return;
+        
+        const c = isLeft ? 'rgba(100,255,180,0.5)' : 'rgba(255,200,100,0.5)';
+        const f = isLeft ? 'rgba(100,255,180,0.06)' : 'rgba(255,200,100,0.06)';
+        const fc = isLeft ? 'rgba(100,255,180,0.7)' : 'rgba(255,200,100,0.7)';
+        
+        drawContour(HAND_PALM,      lm, c, f, 1.5);
+        drawContour(THUMB,          lm, fc, null, 2);
+        drawContour(INDEX_FINGER,   lm, fc, null, 2);
+        drawContour(MIDDLE_FINGER,  lm, fc, null, 2);
+        drawContour(RING_FINGER,    lm, fc, null, 2);
+        drawContour(PINKY,          lm, fc, null, 2);
+        
+        [4, 8, 12, 16, 20].forEach(i => {
+            if (lm[i]) {
+                const vw = video.videoWidth || 640;
+                const vh = video.videoHeight || 480;
+                const { scale, offsetX, offsetY } = getCoverScale();
+                const x = canvas.width - (lm[i].x * vw * scale + offsetX);
+                const y = lm[i].y * vh * scale + offsetY;
+                ctx.beginPath();
+                ctx.arc(x, y, 4, 0, Math.PI * 2);
+                ctx.fillStyle = isLeft ? 'rgba(100,255,180,0.8)' : 'rgba(255,200,100,0.8)';
+                ctx.fill();
+            }
+        });
+    }
+
+    // ============================================================
+    // Debug
+    // ============================================================
+    let dbgLines = [];
+    let frameCount = 0;
+
+    function dbg(text) {
+        dbgLines.push(text);
+        if (dbgLines.length > 8) dbgLines.shift();
+        const hud = document.getElementById('debugHud');
+        if (hud) hud.textContent = dbgLines.join('\n');
+    }
+
+    // ============================================================
+    // Process
+    // ============================================================
+    function processPose(poseLm, faceLm, handsLm) {
+        if (state >= 3) return;
+
+        const hasPose = poseLm && poseLm.length > 0;
+        const nose = hasPose ? poseLm[0] : null;
+        const validPose = nose && nose.x > 0 && nose.x < 1 && nose.y > 0 && nose.y < 1;
+
+        // Draw
+        if (faceLm) drawFaceContours(faceLm);
+        if (handsLm) {
+            handsLm.forEach((hand, i) => {
+                drawHandContours(hand.landmark || hand, hand.handedness === 'Left' || i === 0);
+            });
+        }
+
+        // State 0: 等待离开
+        if (state === 0) {
+            status.textContent = '去倒杯水吧';
+            hintText.textContent = '起身离开座位';
+            
+            if (!validPose || nose.y > LEAVE_THRESHOLD) {
+                status.textContent = '等你回来';
+                state = 1;
+                leaveTime = now();
+                setStepActive(1);
+                updateProgress();
+                dbg(`离开 nose.y=${validPose ? nose.y.toFixed(3) : 'null'}`);
+            }
+            return;
+        }
+
+        // State 1: 等待回来
+        if (state === 1) {
+            status.textContent = '等你回来';
+            hintText.textContent = '回来坐下吧';
+            
+            const elapsed = now() - leaveTime;
+            if (elapsed < LEAVE_TIME_MIN) return;
+
+            if (validPose && nose.y < RETURN_THRESHOLD) {
+                status.textContent = '请喝水';
+                state = 2;
+                setStepActive(2);
+                updateProgress();
+                hintText.textContent = '把手拿到嘴边';
+                dbg(`回来 nose.y=${nose.y.toFixed(3)}`);
+            }
+            return;
+        }
+
+        // State 2: 等待喝水
+        if (state === 2) {
+            if (!validPose) return;
+
+            const lWrist = poseLm[15];
+            const rWrist = poseLm[16];
+            
+            // 嘴部位置
+            let mouthCenter;
+            if (faceLm && faceLm.length >= 400) {
+                const lMouth = faceLm[61];
+                const rMouth = faceLm[291];
+                mouthCenter = {
+                    x: (lMouth.x + rMouth.x) / 2,
+                    y: (lMouth.y + rMouth.y) / 2,
+                    z: (lMouth.z + rMouth.z) / 2
+                };
+            } else {
+                mouthCenter = { x: poseLm[0].x, y: poseLm[0].y, z: poseLm[0].z || 0 };
+            }
+
+            let drinking = false;
+            let minDist = 999;
+            
+            if (lWrist) {
+                const d = dist3D(lWrist, mouthCenter);
+                if (d < minDist) minDist = d;
+                if (d < DRINK_DIST) drinking = true;
+            }
+            if (rWrist) {
+                const d = dist3D(rWrist, mouthCenter);
+                if (d < minDist) minDist = d;
+                if (d < DRINK_DIST) drinking = true;
+            }
+
+            if (handsLm && handsLm.length > 0) {
+                const tips = [4, 8, 12, 16, 20];
+                handsLm.forEach(hand => {
+                    const h = hand.landmark || hand;
+                    tips.forEach(idx => {
+                        if (h[idx]) {
+                            const d = dist3D(h[idx], mouthCenter);
+                            if (d < minDist) minDist = d;
+                            if (d < DRINK_DIST) drinking = true;
+                        }
+                    });
+                });
+            }
+
+            if (frameCount % 20 === 0) {
+                dbg(`min=${minDist.toFixed(3)} threshold=${DRINK_DIST} drinking=${drinking}`);
+            }
+
+            if (drinking && now() - lastDrinkTime > DRINK_COOLDOWN) {
+                drinkCount++;
+                lastDrinkTime = now();
+                updateProgress();
+                playDrinkSound();
+
+                if (drinkCount >= DRINK_TARGET) {
+                    status.textContent = '完成！';
+                    state = 3;
+                    setStepActive(3);
+                    updateProgress();
+                    onComplete();
+                }
+            }
+        }
+    }
+
+    async function onComplete() {
+        playDoneSound();
+        doneOverlay.classList.add('show');
+        setTimeout(async () => {
+            try { await fetch('http://localhost:3721/api/scene-complete', { method: 'POST' }); } catch(_) {}
+            setTimeout(() => window.close(), 2000);
+        }, 2500);
+    }
+
+    // ============================================================
+    // MediaPipe
+    // ============================================================
+    let poseLandmarker = null;
+    let faceLandmarker = null;
+    let handLandmarker = null;
+
+    async function initMediaPipe() {
+        try {
+            const { FilesetResolver, PoseLandmarker, FaceLandmarker, HandLandmarker } = await import(
+                'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/vision_bundle.js'
+            );
+            loadText.textContent = '加载模型...';
+            const vision = await FilesetResolver.forVisionTasks(
+                'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
+            );
+
+            loadText.textContent = '动作模型...';
+            poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
+                baseOptions: { modelAssetPath: '/models/pose_landmarker_lite.task', delegate: 'CPU' },
+                runningMode: 'VIDEO', numPoses: 1,
+                minPoseDetectionConfidence: 0.5, minPosePresenceConfidence: 0.5, minTrackingConfidence: 0.5
+            });
+
+            loadText.textContent = '人脸模型...';
+            try {
+                faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
+                    baseOptions: { modelAssetPath: '/models/face_landmarker.task', delegate: 'CPU' },
+                    runningMode: 'IMAGE', numFaces: 1
+                });
+            } catch(e) { console.warn('[Face]', e.message); faceLandmarker = null; }
+
+            loadText.textContent = '手部模型...';
+            try {
+                handLandmarker = await HandLandmarker.createFromOptions(vision, {
+                    baseOptions: { modelAssetPath: '/models/hand_landmarker.task', delegate: 'CPU' },
+                    runningMode: 'IMAGE', numHands: 2
+                });
+            } catch(e) { console.warn('[Hand]', e.message); handLandmarker = null; }
+
+            loadText.textContent = '摄像头...';
+        } catch(e) {
+            loadText.textContent = '加载失败: ' + e.message;
+            console.error('[MediaPipe]', e);
+        }
+    }
+
+    async function startCamera() {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' }
+        });
+        video.srcObject = stream;
+        await video.play();
+    }
+
+    // ============================================================
+    // Loop
+    // ============================================================
+    let prevPose = null;
+
+    function smoothPt(cur, prev, a = 0.5) {
+        if (!prev) return cur;
+        return {
+            x: a * cur.x + (1 - a) * prev.x,
+            y: a * cur.y + (1 - a) * prev.y,
+            z: a * (cur.z || 0) + (1 - a) * (prev.z || 0)
+        };
+    }
+
+    function detectLoop() {
+        if (!poseLandmarker || !video.videoWidth || state >= 3) {
+            requestAnimationFrame(detectLoop);
+            return;
+        }
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        frameCount++;
+
+        try {
+            const poseResults = poseLandmarker.detectForVideo(video, performance.now());
+            const poseLm = poseResults?.landmarks?.[0];
+            
+            let smoothPose = null;
+            if (poseLm) {
+                smoothPose = poseLm.map((pt, i) => smoothPt(pt, prevPose ? prevPose[i] : null, 0.5));
+                prevPose = smoothPose;
+            } else {
+                prevPose = null;
+            }
+
+            let faceLm = null;
+            if (faceLandmarker) {
+                try {
+                    const faceResults = faceLandmarker.detect(video);
+                    faceLm = faceResults?.faceLandmarks?.[0] || faceResults?.landmarks?.[0];
+                } catch(_) {}
+            }
+
+            let handsLm = null;
+            if (handLandmarker) {
+                try {
+                    const handResults = handLandmarker.detect(video);
+                    handsLm = handResults?.landmarks;
+                } catch(_) {}
+            }
+
+            processPose(smoothPose, faceLm, handsLm);
+        } catch(e) {
+            if (frameCount % 60 === 0) dbg('err: ' + e.message);
+        }
+
+        requestAnimationFrame(detectLoop);
+    }
+
+    // ============================================================
+    // Bootstrap
+    // ============================================================
+    (async () => {
+        try {
+            await initMediaPipe();
+            await startCamera();
+            loadingEl.classList.add('hidden');
+            setTimeout(() => loadingEl.remove(), 500);
+            setStepActive(0);
+            detectLoop();
+        } catch(err) {
+            loadText.textContent = '启动失败: ' + err.message;
+        }
+    })();
+
+    // ============================================================
+    // Click skip
+    // ============================================================
+    document.addEventListener('click', () => {
+        if (state >= 3) return;
+        state = 3;
+        playDoneSound();
+        doneOverlay.classList.add('show');
+        setTimeout(async () => {
+            try { await fetch('http://localhost:3721/api/scene-complete', { method: 'POST' }); } catch(_) {}
+            setTimeout(() => window.close(), 1500);
+        }, 1800);
+    });
+    </script>
+</body>
+</html>

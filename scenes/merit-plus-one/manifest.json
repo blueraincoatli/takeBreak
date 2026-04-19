@@ -1,9 +1,19 @@
 {
   "id": "merit-plus-one",
-  "name": "功德+1",
-  "author": "hongyu",
-  "description": "赛博拜佛电子木鱼，敲一下功德+1，休息也能积功德",
-  "duration": 10,
-  "tags": ["搞笑", "佛系", "互动"],
-  "version": "1.0.0"
+  "name": "功德+1 (点头版)",
+  "author": "blueraincoat",
+  "description": "赛博拜佛电子木鱼，点头敲木鱼，休息放松头颈部",
+  "type": "motion",
+  "duration": 60,
+  "version": "2.0.0",
+  "tags": ["佛系", "互动", "放松"],
+  "requirements": {
+    "camera": true,
+    "fullscreen": true
+  },
+  "config": {
+    "targetCount": 10,
+    "nodAngleThreshold": 15,
+    "cooldownMs": 500
+  }
 }

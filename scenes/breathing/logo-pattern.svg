@@ -1,0 +1,27 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" width="600" height="300" patternUnits="userSpaceOnUse">
+  <!-- even rows: logos at y=0,75,150,225 -->
+  <!-- odd rows: logos at y=-37.5, 37.5, 112.5, 187.5 (offset by -37.5) -->
+  <defs>
+    <image id="logo" href="claude-logo-dark.png" width="250" height="54" preserveAspectRatio="xMidYMid meet"/>
+  </defs>
+  <!-- even rows -->
+  <use href="#logo" x="0"   y="0"/>
+  <use href="#logo" x="300" y="0"/>
+  <use href="#logo" x="0"   y="75"/>
+  <use href="#logo" x="300" y="75"/>
+  <use href="#logo" x="0"   y="150"/>
+  <use href="#logo" x="300" y="150"/>
+  <use href="#logo" x="0"   y="225"/>
+  <use href="#logo" x="300" y="225"/>
+  <!-- odd rows (staggered -37.5px up, 37.5px down = half logo height offset) -->
+  <use href="#logo" x="0"   y="-37.5"/>
+  <use href="#logo" x="300" y="-37.5"/>
+  <use href="#logo" x="150" y="37.5"/>
+  <use href="#logo" x="450" y="37.5"/>
+  <use href="#logo" x="0"   y="112.5"/>
+  <use href="#logo" x="300" y="112.5"/>
+  <use href="#logo" x="150" y="187.5"/>
+  <use href="#logo" x="450" y="187.5"/>
+  <use href="#logo" x="0"   y="262.5"/>
+  <use href="#logo" x="300" y="262.5"/>
+</svg>

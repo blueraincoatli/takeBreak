@@ -5,360 +5,1162 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>喝水提醒</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            margin: 0;
-            padding: 0;
             overflow: hidden;
-            font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
-            position: fixed;
-            top: 0;
-            left: 0;
+            background: #000;
+        }
+        canvas {
+            display: block;
             width: 100vw;
             height: 100vh;
         }
-
-        .bg-screenshot {
+        #canvas-outline {
             position: fixed;
-            top: 0;
-            left: 0;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            z-index: 20;
+            pointer-events: none;
+        }
+        #video { display: none; }
+        
+        /* 顶部 UI */
+        .ui-top {
+            position: fixed;
+            top: 0; left: 0;
             width: 100vw;
-            height: 100vh;
-            background: #000 no-repeat center center;
-            background-size: 100vw 100vh;
-            z-index: 0;
+            z-index: 50;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-top: 30px;
+            pointer-events: none;
         }
-
-        .overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            cursor: pointer;
-            z-index: 10000;
-            opacity: 0;
-            animation: fadeIn 0.5s ease forwards;
-            background: linear-gradient(135deg, 
-                rgba(135, 206, 235, 0.95) 0%, 
-                rgba(176, 224, 230, 0.95) 50%,
-                rgba(173, 216, 230, 0.95) 100%);
+        .title {
+            font-family: 'Microsoft YaHei', sans-serif;
+            font-size: 12px;
+            color: rgba(150,220,255,0.4);
+            letter-spacing: 3px;
+            margin-bottom: 5px;
         }
-
-        @keyframes fadeIn {
-            to { opacity: 1; }
+        .status {
+            font-family: 'Microsoft YaHei', sans-serif;
+            font-size: clamp(20px, 4vw, 32px);
+            font-weight: 300;
+            color: rgba(180,230,255,0.85);
+            text-shadow: 0 0 20px rgba(100,200,255,0.3);
+            margin-bottom: 12px;
+            letter-spacing: 1px;
         }
-
-        /* 水滴装饰 */
-        .water-drop {
-            position: fixed;
-            font-size: 30px;
-            opacity: 0;
-            animation: dropFall 3s ease-in infinite;
-            z-index: 1;
-        }
-
-        @keyframes dropFall {
-            0% {
-                opacity: 0;
-                transform: translateY(-50px) rotate(0deg);
-            }
-            10% {
-                opacity: 0.8;
-            }
-            90% {
-                opacity: 0.8;
-            }
-            100% {
-                opacity: 0;
-                transform: translateY(100vh) rotate(360deg);
-            }
-        }
-
-        /* 主容器 */
-        .main-container {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            text-align: center;
-            z-index: 10;
-        }
-
-        /* 大水杯图标 */
-        .water-glass {
-            font-size: clamp(100px, 20vw, 180px);
-            margin-bottom: 20px;
-            animation: glassShake 2s ease-in-out infinite;
-            filter: drop-shadow(0 10px 30px rgba(0, 100, 200, 0.3));
-        }
-
-        @keyframes glassShake {
-            0%, 100% { transform: rotate(-5deg); }
-            50% { transform: rotate(5deg); }
-        }
-
-        /* 主标题 - 表情包风格 */
-        .main-title {
-            font-size: clamp(36px, 8vw, 64px);
-            font-weight: 900;
-            color: #0066CC;
-            text-shadow: 
-                3px 3px 0 #fff,
-                -2px -2px 0 #87CEEB,
-                0 0 30px rgba(0, 150, 255, 0.5);
-            margin-bottom: 15px;
-            animation: textPulse 1.5s ease-in-out infinite;
-            letter-spacing: 4px;
-        }
-
-        @keyframes textPulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-        }
-
-        /* 副标题 */
-        .sub-title {
-            font-size: clamp(18px, 4vw, 28px);
-            color: #004080;
-            font-weight: bold;
-            margin-bottom: 30px;
-            text-shadow: 1px 1px 0 rgba(255,255,255,0.8);
-        }
-
-        /* 健康提示框 */
-        .health-tips {
-            background: rgba(255, 255, 255, 0.9);
-            border-radius: 20px;
-            padding: 20px 30px;
-            margin-top: 20px;
-            box-shadow: 0 10px 40px rgba(0, 100, 200, 0.2);
-            border: 3px solid #87CEEB;
-            opacity: 0;
-            animation: slideUp 0.8s ease 0.5s forwards;
-        }
-
-        @keyframes slideUp {
-            from {
-                opacity: 0;
-                transform: translateY(30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .tip-title {
-            font-size: 20px;
-            color: #0066CC;
-            font-weight: bold;
-            margin-bottom: 10px;
-        }
-
-        .tip-text {
-            font-size: 16px;
-            color: #333;
-            line-height: 1.6;
-        }
-
-        /* 进度条 - 水分 */
-        .hydration-bar {
-            width: 300px;
-            height: 20px;
-            background: rgba(255,255,255,0.5);
-            border-radius: 10px;
-            margin: 20px auto;
+        .water-bar {
+            width: 160px;
+            height: 6px;
+            background: rgba(50,100,150,0.25);
+            border-radius: 3px;
             overflow: hidden;
-            border: 2px solid #87CEEB;
+            border: 1px solid rgba(100,180,255,0.2);
         }
-
-        .hydration-fill {
+        .water-fill {
             height: 100%;
-            background: linear-gradient(90deg, #87CEEB, #0066CC);
-            width: 30%;
-            border-radius: 10px;
-            animation: hydrationPulse 2s ease-in-out infinite;
+            background: linear-gradient(90deg, #2a6a9a, #4ab0d0, #70d0f0);
+            border-radius: 3px;
+            transition: width 0.6s ease;
+            width: 0%;
         }
-
-        @keyframes hydrationPulse {
-            0%, 100% { opacity: 0.7; }
-            50% { opacity: 1; }
+        .progress-text {
+            margin-top: 6px;
+            font-family: 'Microsoft YaHei', sans-serif;
+            font-size: 11px;
+            color: rgba(150,220,255,0.5);
         }
-
-        .hydration-label {
-            font-size: 14px;
-            color: #0066CC;
-            margin-top: 5px;
-        }
-
-        /* 关闭提示 */
-        .close-hint {
+        
+        /* 底部提示 */
+        .hint {
             position: fixed;
-            bottom: 5%;
+            bottom: 25px;
             left: 50%;
             transform: translateX(-50%);
-            font-size: 14px;
-            color: rgba(0, 80, 160, 0.7);
+            z-index: 50;
+            pointer-events: none;
+            font-family: 'Microsoft YaHei', sans-serif;
+            font-size: 11px;
+            color: rgba(150,220,255,0.35);
+            letter-spacing: 2px;
+        }
+        
+        /* 完成遮罩 */
+        .done-overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            z-index: 300;
             opacity: 0;
-            animation: fadeInHint 1s ease 1s forwards;
+            pointer-events: none;
+            transition: opacity 0.5s;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0,5,15,0.7);
         }
-
-        @keyframes fadeInHint {
-            to { opacity: 1; }
+        .done-overlay.show { opacity: 1; pointer-events: all; }
+        .done-card {
+            background: rgba(10,30,60,0.9);
+            border: 1px solid rgba(100,180,255,0.35);
+            border-radius: 14px;
+            padding: 32px 45px;
+            text-align: center;
+            transform: scale(0.85);
+            transition: transform 0.4s cubic-bezier(0.34,1.56,0.64,1);
         }
-
-        /* 表情包风格的强调文字 */
-        .emphasis-text {
-            display: inline-block;
-            background: #FF6B6B;
-            color: white;
-            padding: 5px 15px;
-            border-radius: 20px;
-            font-size: 18px;
-            font-weight: bold;
-            margin-top: 10px;
-            animation: emphasisPulse 1s ease-in-out infinite;
-            box-shadow: 0 4px 15px rgba(255, 107, 107, 0.4);
+        .done-overlay.show .done-card { transform: scale(1); }
+        .done-icon { font-size: 40px; margin-bottom: 10px; }
+        .done-title {
+            font-family: 'Microsoft YaHei', sans-serif;
+            font-size: 24px;
+            color: rgba(150,220,255,0.9);
+            letter-spacing: 3px;
+            margin-bottom: 5px;
         }
-
-        @keyframes emphasisPulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.1); }
+        .done-sub {
+            font-family: 'Microsoft YaHei', sans-serif;
+            font-size: 11px;
+            color: rgba(150,220,255,0.45);
+        }
+        
+        /* 加载 */
+        .loading {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            z-index: 999;
+            background: #000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            transition: opacity 0.4s;
+        }
+        .loading.hidden { opacity: 0; pointer-events: none; }
+        .spinner {
+            width: 32px; height: 32px;
+            border: 2px solid rgba(100,180,255,0.2);
+            border-top-color: rgba(100,180,255,0.6);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 12px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loading-t {
+            font-family: 'Microsoft YaHei', sans-serif;
+            color: rgba(150,220,255,0.45);
+            font-size: 11px;
+            letter-spacing: 2px;
+        }
+        
+        /* 调试 */
+        .debug {
+            position: fixed;
+            bottom: 12px; right: 12px;
+            background: rgba(0,10,30,0.6);
+            color: rgba(100,180,255,0.5);
+            font-family: 'Consolas', monospace;
+            font-size: 9px;
+            line-height: 1.4;
+            padding: 6px 8px;
+            border-radius: 4px;
+            z-index: 500;
+            pointer-events: none;
         }
     </style>
 </head>
 <body>
-    <div class="bg-screenshot"></div>
-
-    <!-- 水滴装饰 -->
-    <div class="water-drop" style="left: 10%; animation-delay: 0s;">💧</div>
-    <div class="water-drop" style="left: 25%; animation-delay: 0.5s;">💧</div>
-    <div class="water-drop" style="left: 40%; animation-delay: 1s;">💧</div>
-    <div class="water-drop" style="left: 60%; animation-delay: 1.5s;">💧</div>
-    <div class="water-drop" style="left: 75%; animation-delay: 0.3s;">💧</div>
-    <div class="water-drop" style="left: 90%; animation-delay: 0.8s;">💧</div>
-
-    <div class="overlay" id="overlay">
-        <div class="main-container">
-            <div class="water-glass">🥤</div>
-            
-            <div class="main-title" id="mainTitle">该喝水了！</div>
-            <div class="sub-title" id="subTitle">你的身体正在发出缺水警报</div>
-
-            <!-- 水分进度条 -->
-            <div class="hydration-bar">
-                <div class="hydration-fill"></div>
-            </div>
-            <div class="hydration-label">当前水分：30% - 急需补水！</div>
-
-            <div class="health-tips">
-                <div class="tip-title">💡 健康小知识</div>
-                <div class="tip-text" id="tipText">
-                    连续工作1小时不喝水，身体水分会下降5%<br>
-                    缺水会导致：头晕、疲劳、注意力下降
-                </div>
-                <div class="emphasis-text">现在就喝一口！</div>
-            </div>
+    <canvas id="glCanvas"></canvas>
+    <canvas id="canvas-outline"></canvas>
+    <video id="video" autoplay playsinline muted></video>
+    
+    <div class="ui-top">
+        <div class="title">补水提醒</div>
+        <div class="status" id="status">去倒杯水吧</div>
+        <div class="water-bar"><div class="water-fill" id="waterFill"></div></div>
+        <div class="progress-text" id="progressText">0%</div>
+    </div>
+    
+    <div class="hint" id="hintText">点击任意处跳过</div>
+    
+    <div class="done-overlay" id="doneOverlay">
+        <div class="done-card">
+            <div class="done-icon">💧</div>
+            <div class="done-title">补水完成</div>
+            <div class="done-sub">身体已补充水分</div>
         </div>
-
-        <div class="close-hint">点击任意位置关闭，记得去倒水哦~</div>
+    </div>
+    
+    <div class="debug" id="debug">...</div>
+    
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <div class="loading-t" id="loadText">加载中...</div>
     </div>
 
     <script>
-        const mainTitles = [
-            "该喝水了！",
-            "喝水时间到！",
-            "你的肾在求救！",
-            "缺水警报！",
-            "吨吨吨时间！",
-            "身体渴了！"
-        ];
-
-        const subTitles = [
-            "你的身体正在发出缺水警报",
-            "再不喝就变成人干了",
-            "喝水防脱发，真的",
-            "你的细胞在喊渴",
-            "老板可以等，身体不能等",
-            "喝水是最便宜的保健品"
-        ];
-
-        const tips = [
-            "连续工作1小时不喝水，身体水分会下降5%<br>缺水会导致：头晕、疲劳、注意力下降",
-            "成年人每天需要喝1500-2000ml水<br>你现在喝了多少？",
-            "缺水会影响大脑功能<br>喝口水，灵感就来了",
-            "皮肤不好？多喝水！<br>比护肤品管用多了",
-            "喝水能预防肾结石<br>你的肾会感谢你的",
-            "感到累了？可能是缺水<br>不是缺咖啡"
-        ];
-
-        document.getElementById('mainTitle').textContent = 
-            mainTitles[Math.floor(Math.random() * mainTitles.length)];
-        document.getElementById('subTitle').textContent = 
-            subTitles[Math.floor(Math.random() * subTitles.length)];
-        document.getElementById('tipText').innerHTML = 
-            tips[Math.floor(Math.random() * tips.length)];
-
-        // 播放水滴声
-        function playWaterSound() {
-            try {
-                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                const now = audioCtx.currentTime;
-
-                // 水滴声
-                const osc = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
-                const filter = audioCtx.createBiquadFilter();
-
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(800, now);
-                osc.frequency.exponentialRampToValueAtTime(400, now + 0.1);
-
-                filter.type = 'lowpass';
-                filter.frequency.value = 1000;
-
-                gain.gain.setValueAtTime(0.3, now);
-                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
-
-                osc.connect(filter);
-                filter.connect(gain);
-                gain.connect(audioCtx.destination);
-
-                osc.start(now);
-                osc.stop(now + 0.15);
-
-                // 第二滴
-                setTimeout(() => {
-                    const osc2 = audioCtx.createOscillator();
-                    const gain2 = audioCtx.createGain();
-                    osc2.type = 'sine';
-                    osc2.frequency.setValueAtTime(600, now + 0.3);
-                    osc2.frequency.exponentialRampToValueAtTime(300, now + 0.4);
-                    gain2.gain.setValueAtTime(0.2, now + 0.3);
-                    gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.45);
-                    osc2.connect(gain2);
-                    gain2.connect(audioCtx.destination);
-                    osc2.start(now + 0.3);
-                    osc2.stop(now + 0.45);
-                }, 300);
-            } catch (e) {}
+    // ============================================================
+    // WebGL Metaball Water Person
+    // ============================================================
+    
+    const canvas = document.getElementById('glCanvas');
+    const outlineCanvas = document.getElementById('canvas-outline');
+    const outlineCtx = outlineCanvas.getContext('2d');
+    const video = document.getElementById('video');
+    
+    function resizeOutline() {
+        outlineCanvas.width = window.innerWidth;
+        outlineCanvas.height = window.innerHeight;
+    }
+    resizeOutline();
+    
+    // State
+    let state = 0; // 0:等待离开  1:等待回来  2:等待喝水  3:完成
+    let leaveTime = 0;
+    let lastDrinkTime = 0;
+    let drinkCount = 0;
+    let waterLevel = 0;
+    let targetWaterLevel = 0;
+    let frameCount = 0;
+    let poseData = null;
+    
+    // Config
+    const DRINK_TARGET = 2;
+    const LEAVE_THRESHOLD = 0.65;
+    const RETURN_THRESHOLD = 0.45;
+    const DRINK_DIST = 0.30;
+    const LEAVE_TIME_MIN = 2500;
+    const DRINK_COOLDOWN = 1200;
+    
+    // DOM
+    const statusEl = document.getElementById('status');
+    const waterFillEl = document.getElementById('waterFill');
+    const progressTextEl = document.getElementById('progressText');
+    const doneOverlay = document.getElementById('doneOverlay');
+    const loadingEl = document.getElementById('loading');
+    const loadTextEl = document.getElementById('loadText');
+    const debugEl = document.getElementById('debug');
+    
+    // ============================================================
+    // WebGL Setup
+    // ============================================================
+    let gl, program;
+    let timeUniform, resolutionUniform, waterLevelUniform;
+    let ballPosUniform; // 12 balls * 3 components = 36 floats
+    
+    // Pose keypoints (12 balls)
+    let ballPositions = new Float32Array([
+        // Default positions (head, torso, shoulders, elbows, hips)
+        0.0, 0.5, 0.0,      // head
+        0.0, 0.2, 0.1,      // head2
+        0.0, 0.0, 0.0,      // torso1
+        0.0, -0.3, 0.05,    // torso2
+        0.0, -0.6, 0.0,     // torso3
+        0.0, -0.9, 0.0,     // torso4
+        -0.4, 0.1, 0.0,     // l_shoulder
+        0.4, 0.1, 0.0,      // r_shoulder
+        -0.5, -0.2, 0.0,    // l_elbow
+        0.5, -0.2, 0.0,     // r_elbow
+        -0.2, -1.0, 0.0,    // l_hip
+        0.2, -1.0, 0.0      // r_hip
+    ]);
+    
+    const vertexShaderSource = `
+        attribute vec2 a_position;
+        void main() {
+            gl_Position = vec4(a_position, 0.0, 1.0);
         }
-
-        playWaterSound();
-
-        // 点击关闭
-        document.getElementById('overlay').addEventListener('click', () => {
-            const overlay = document.getElementById('overlay');
-            overlay.style.transition = 'opacity 0.3s';
-            overlay.style.opacity = '0';
-            setTimeout(() => window.close(), 300);
+    `;
+    
+    const fragmentShaderSource = `
+        precision highp float;
+        
+        uniform float u_time;
+        uniform vec2 u_resolution;
+        uniform float u_waterLevel;
+        
+        // 12 ball positions - using separate uniforms for WebGL 1.0 compatibility
+        uniform vec3 u_b0; uniform vec3 u_b1; uniform vec3 u_b2; uniform vec3 u_b3;
+        uniform vec3 u_b4; uniform vec3 u_b5; uniform vec3 u_b6; uniform vec3 u_b7;
+        uniform vec3 u_b8; uniform vec3 u_b9; uniform vec3 u_b10; uniform vec3 u_b11;
+        
+        #define MAX_STEPS 80
+        #define MAX_DIST 30.0
+        #define SURF_DIST 0.001
+        #define BALL_COUNT 12
+        
+        // ===== Noise Functions =====
+        vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+        vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+        vec4 permute(vec4 x) { return mod289(((x*34.0)+1.0)*x); }
+        vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
+        
+        float snoise(vec3 v) {
+            const vec2 C = vec2(1.0/6.0, 1.0/3.0);
+            const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+            
+            vec3 i = floor(v + dot(v, C.yyy));
+            vec3 x0 = v - i + dot(i, C.xxx);
+            
+            vec3 g = step(x0.yzx, x0.xyz);
+            vec3 l = 1.0 - g;
+            vec3 i1 = min(g.xyz, l.zxy);
+            vec3 i2 = max(g.xyz, l.zxy);
+            
+            vec3 x1 = x0 - i1 + C.xxx;
+            vec3 x2 = x0 - i2 + C.yyy;
+            vec3 x3 = x0 - D.yyy;
+            vec3 x4 = x0 - D.zzz;
+            
+            i = mod289(i);
+            vec4 p = permute(permute(permute(
+                i.z + vec4(0.0, i1.z, i2.z, 1.0))
+                + i.y + vec4(0.0, i1.y, i2.y, 1.0))
+                + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+            
+            float n_ = 0.142857142857;
+            vec3 ns = n_ * D.wyz - D.xzx;
+            
+            vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+            
+            vec4 x_ = floor(j * ns.z);
+            vec4 y_ = floor(j - 7.0 * x_);
+            
+            vec4 x = x_ *ns.x + ns.yyyy;
+            vec4 y = y_ *ns.x + ns.yyyy;
+            vec4 h = 1.0 - abs(x) - abs(y);
+            
+            vec4 b0 = vec4(x.xy, y.xy);
+            vec4 b1 = vec4(x.zw, y.zw);
+            
+            vec4 s0 = floor(b0)*2.0 + 1.0;
+            vec4 s1 = floor(b1)*2.0 + 1.0;
+            vec4 sh = -step(h, vec4(0.0));
+            
+            vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy;
+            vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww;
+            
+            vec3 p0 = vec3(a0.xy, h.x);
+            vec3 p1 = vec3(a0.zw, h.y);
+            vec3 p2 = vec3(a1.xy, h.z);
+            vec3 p3 = vec3(a1.zw, h.w);
+            
+            vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2,p2), dot(p3,p3)));
+            p0 *= norm.x;
+            p1 *= norm.y;
+            p2 *= norm.z;
+            p3 *= norm.w;
+            
+            vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+            m = m * m;
+            return 42.0 * dot(m*m, vec4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
+        }
+        
+        // ===== Smooth Minimum (Metaball Blend) =====
+        float smax(float a, float b, float k) {
+            float h = clamp(0.5 - 0.5 * (b - a) / k, 0.0, 1.0);
+            return mix(b, a, h) + k * h * (1.0 - h);
+        }
+        
+        float smin(float a, float b, float k) {
+            float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
+            return mix(b, a, h) - k * h * (1.0 - h);
+        }
+        
+        // ===== Ball Properties =====
+        vec3 getBallPos(int i, float t) {
+            vec3 base;
+            if (i == 0) base = u_b0;
+            else if (i == 1) base = u_b1;
+            else if (i == 2) base = u_b2;
+            else if (i == 3) base = u_b3;
+            else if (i == 4) base = u_b4;
+            else if (i == 5) base = u_b5;
+            else if (i == 6) base = u_b6;
+            else if (i == 7) base = u_b7;
+            else if (i == 8) base = u_b8;
+            else if (i == 9) base = u_b9;
+            else if (i == 10) base = u_b10;
+            else base = u_b11;
+            
+            // Add subtle noise for fluid effect
+            float fi = float(i);
+            float speed = 0.5 + fi * 0.1;
+            vec3 noise = vec3(
+                sin(t * speed + fi * 2.1) * 0.03,
+                sin(t * speed * 0.7 + fi * 1.3) * 0.02,
+                sin(t * speed * 0.9 + fi * 3.7) * 0.02
+            );
+            return base + noise;
+        }
+        
+        float getBallRadius(int i, float t) {
+            float baseR;
+            if (i == 0) baseR = 0.18;      // head (smaller)
+            else if (i == 1) baseR = 0.15;  // head2
+            else if (i == 2) baseR = 0.28;  // torso
+            else if (i == 3) baseR = 0.26;  // torso2
+            else if (i == 4) baseR = 0.24;  // torso3
+            else if (i == 5) baseR = 0.22;  // torso4
+            else if (i == 6) baseR = 0.16;  // l_shoulder
+            else if (i == 7) baseR = 0.16;  // r_shoulder
+            else if (i == 8) baseR = 0.13;  // l_elbow
+            else if (i == 9) baseR = 0.13;  // r_elbow
+            else if (i == 10) baseR = 0.16; // l_hip
+            else baseR = 0.16;              // r_hip
+            
+            // Breathing effect
+            float fi = float(i);
+            float breath = 1.0 + sin(t * 0.8 + fi * 0.5) * 0.06;
+            return baseR * breath;
+        }
+        
+        // ===== Scene SDF =====
+        float sceneSDF(vec3 p) {
+            float d = MAX_DIST;
+            float t = u_time;
+            
+            // Blend factor - larger = smoother merging
+            float k = 0.45;
+            
+            for (int i = 0; i < BALL_COUNT; i++) {
+                vec3 ballPos = getBallPos(i, t);
+                float ballRadius = getBallRadius(i, t);
+                float ballDist = length(p - ballPos) - ballRadius;
+                
+                // Smooth union
+                d = smin(d, ballDist, k);
+            }
+            
+            // Add surface noise for flow effect
+            float flowNoise = snoise(p * 2.0 + vec3(t * 0.3, t * 0.2, t * 0.25)) * 0.08;
+            d += flowNoise;
+            
+            return d;
+        }
+        
+        // ===== Normal Estimation =====
+        vec3 getNormal(vec3 p) {
+            float d = sceneSDF(p);
+            vec2 e = vec2(0.001, 0.0);
+            vec3 n = d - vec3(
+                sceneSDF(p - e.xyy),
+                sceneSDF(p - e.yxy),
+                sceneSDF(p - e.yyx)
+            );
+            return normalize(n);
+        }
+        
+        // ===== Ray Marching =====
+        float rayMarch(vec3 ro, vec3 rd) {
+            float dO = 0.0;
+            for (int i = 0; i < MAX_STEPS; i++) {
+                vec3 p = ro + rd * dO;
+                float dS = sceneSDF(p);
+                dO += dS;
+                if (dO > MAX_DIST || abs(dS) < SURF_DIST) break;
+            }
+            return dO;
+        }
+        
+        // ===== Camera Matrix =====
+        mat3 cameraMatrix(vec3 ro, vec3 ta) {
+            vec3 f = normalize(ta - ro);
+            vec3 r = normalize(cross(vec3(0.0, 1.0, 0.0), f));
+            vec3 u = cross(f, r);
+            return mat3(r, u, f);
+        }
+        
+        // ===== Main =====
+        void main() {
+            vec2 uv = (gl_FragCoord.xy - 0.5 * u_resolution.xy) / u_resolution.y;
+            
+            // Fixed camera looking at center
+            vec3 ro = vec3(0.0, 0.3, 4.0);
+            vec3 ta = vec3(0.0, 0.0, 0.0);
+            
+            // Camera matrix
+            vec3 f = normalize(ta - ro);
+            vec3 r = normalize(cross(vec3(0.0, 1.0, 0.0), f));
+            vec3 u = cross(f, r);
+            
+            vec3 rd = normalize(r * uv.x + u * uv.y + f * 1.5);
+            
+            // Background gradient
+            vec3 bgColor = mix(
+                vec3(0.01, 0.02, 0.04),
+                vec3(0.0, 0.05, 0.1),
+                uv.y * 0.5 + 0.5
+            );
+            
+            // Ray march
+            float d = rayMarch(ro, rd);
+            
+            vec3 col = bgColor;
+            
+            if (d < MAX_DIST) {
+                vec3 p = ro + rd * d;
+                vec3 n = getNormal(p);
+                
+                // Water material
+                vec3 viewDir = normalize(ro - p);
+                
+                // Fresnel
+                float fresnel = pow(1.0 - max(dot(n, viewDir), 0.0), 3.0);
+                
+                // Base water colors
+                vec3 deepColor = vec3(0.02, 0.08, 0.15);
+                vec3 surfaceColor = vec3(0.15, 0.45, 0.65);
+                vec3 highlightColor = vec3(0.6, 0.85, 1.0);
+                
+                // Height-based coloring (water level effect)
+                float heightFactor = smoothstep(-1.5, 1.5, p.y);
+                vec3 waterColor = mix(deepColor, surfaceColor, heightFactor);
+                
+                // Apply water level
+                float waterFill = u_waterLevel;
+                float waterHeight = -1.0 + waterFill * 2.5;
+                float inWater = step(p.y, waterHeight);
+                
+                // Below water level = more opaque blue
+                waterColor = mix(waterColor, deepColor * 1.5, inWater * 0.5);
+                
+                // Surface highlight
+                waterColor = mix(waterColor, highlightColor, fresnel * 0.6);
+                
+                // Specular highlight
+                vec3 lightDir = normalize(vec3(0.5, 0.8, 0.6));
+                vec3 halfVec = normalize(lightDir + viewDir);
+                float spec = pow(max(dot(n, halfVec), 0.0), 64.0);
+                waterColor += vec3(0.8, 0.9, 1.0) * spec * 0.5;
+                
+                // Secondary light
+                vec3 lightDir2 = normalize(vec3(-0.3, 0.5, -0.4));
+                vec3 halfVec2 = normalize(lightDir2 + viewDir);
+                float spec2 = pow(max(dot(n, halfVec2), 0.0), 32.0);
+                waterColor += vec3(0.3, 0.5, 0.6) * spec2 * 0.3;
+                
+                // Rim lighting
+                float rim = pow(1.0 - max(dot(n, viewDir), 0.0), 2.0);
+                waterColor += vec3(0.2, 0.5, 0.7) * rim * 0.3;
+                
+                // Edge glow
+                float edge = pow(fresnel, 1.5);
+                waterColor += vec3(0.3, 0.6, 0.8) * edge * 0.4;
+                
+                col = waterColor;
+                
+                // Atmosphere fog
+                float fog = 1.0 - exp(-d * 0.05);
+                col = mix(col, bgColor, fog * 0.3);
+            }
+            
+            // Vignette
+            float vig = 1.0 - smoothstep(0.5, 1.5, length(uv));
+            col *= vig;
+            
+            // Gamma correction
+            col = pow(col, vec3(0.85));
+            
+            gl_FragColor = vec4(col, 1.0);
+        }
+    `;
+    
+    function createShader(gl, type, source) {
+        const shader = gl.createShader(type);
+        gl.shaderSource(shader, source);
+        gl.compileShader(shader);
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+            console.error('Shader error:', gl.getShaderInfoLog(shader));
+            return null;
+        }
+        return shader;
+    }
+    
+    function createProgram(gl, vs, fs) {
+        const prog = gl.createProgram();
+        gl.attachShader(prog, vs);
+        gl.attachShader(prog, fs);
+        gl.linkProgram(prog);
+        if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+            console.error('Program error:', gl.getProgramInfoLog(prog));
+            return null;
+        }
+        return prog;
+    }
+    
+    function initGL() {
+        gl = canvas.getContext('webgl');
+        if (!gl) {
+            loadTextEl.textContent = 'WebGL not supported';
+            return false;
+        }
+        
+        const vs = createShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
+        const fs = createShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
+        program = createProgram(gl, vs, fs);
+        
+        if (!program) return false;
+        
+        gl.useProgram(program);
+        
+        // Create quad
+        const positions = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
+        const buffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+        gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
+        
+        const posAttr = gl.getAttribLocation(program, 'a_position');
+        gl.enableVertexAttribArray(posAttr);
+        gl.vertexAttribPointer(posAttr, 2, gl.FLOAT, false, 0, 0);
+        
+        // Get uniform locations
+        timeUniform = gl.getUniformLocation(program, 'u_time');
+        resolutionUniform = gl.getUniformLocation(program, 'u_resolution');
+        waterLevelUniform = gl.getUniformLocation(program, 'u_waterLevel');
+        
+        return true;
+    }
+    
+    function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        gl.viewport(0, 0, canvas.width, canvas.height);
+    }
+    
+    // ============================================================
+    // MediaPipe (simplified - for pose detection)
+    // ============================================================
+    let poseLandmarker = null;
+    
+    async function initMediaPipe() {
+        try {
+            dbg(['加载 MediaPipe 模块...']);
+            const { FilesetResolver, PoseLandmarker } = await import(
+                'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/vision_bundle.js'
+            );
+            
+            loadTextEl.textContent = '加载 WASM...';
+            dbg(['加载 WASM...']);
+            const vision = await FilesetResolver.forVisionTasks(
+                'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
+            );
+            
+            loadTextEl.textContent = '加载姿态模型...';
+            dbg(['创建 PoseLandmarker...']);
+            poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
+                baseOptions: { modelAssetPath: '/models/pose_landmarker_lite.task', delegate: 'CPU' },
+                runningMode: 'VIDEO', numPoses: 1,
+                minPoseDetectionConfidence: 0.5, minPosePresenceConfidence: 0.5, minTrackingConfidence: 0.5
+            });
+            
+            dbg(['PoseLandmarker 创建成功']);
+            loadTextEl.textContent = '摄像头...';
+            return true;
+        } catch(e) {
+            console.error('[MediaPipe]', e);
+            loadTextEl.textContent = 'MediaPipe 失败: ' + e.message;
+            dbg(['MediaPipe err: ' + e.message]);
+            return false;
+        }
+    }
+    
+    async function startCamera() {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' }
         });
+        video.srcObject = stream;
+        await video.play();
+    }
+    
+    // ============================================================
+    // Process Pose
+    // ============================================================
+    function dist3D(a, b) {
+        const dx = a.x - b.x, dy = a.y - b.y, dz = (a.z || 0) - (b.z || 0);
+        return Math.sqrt(dx*dx + dy*dy + dz*dz);
+    }
+    
+    function dbg(lines) {
+        if (!Array.isArray(lines)) {
+            lines = [String(lines)];
+        }
+        if (debugEl) {
+            debugEl.textContent = lines.join('\n');
+        }
+    }
+    
+    // ============================================================
+    // Draw Pose Outline (for debugging / visual reference)
+    // ============================================================
+    function drawPoseOutline(lm) {
+        if (!lm || lm.length < 25) return;
+        
+        const w = outlineCanvas.width;
+        const h = outlineCanvas.height;
+        const vw = video.videoWidth || 640;
+        const vh = video.videoHeight || 480;
+        
+        // Cover-mode coordinate conversion (mirror)
+        const videoAspect = vw / vh;
+        const canvasAspect = w / h;
+        let scale, offsetX, offsetY;
+        if (canvasAspect > videoAspect) {
+            scale = h / vh;
+            offsetX = (w - vw * scale) / 2;
+            offsetY = 0;
+        } else {
+            scale = w / vw;
+            offsetX = 0;
+            offsetY = (h - vh * scale) / 2;
+        }
+        
+        const toX = (nx) => w - (nx * vw * scale + offsetX); // mirror
+        const toY = (ny) => ny * vh * scale + offsetY;
+        
+        // Draw skeleton connections
+        const connections = [
+            [11, 12], // shoulders
+            [11, 13], [13, 15], // left arm
+            [12, 14], [14, 16], // right arm
+            [11, 23], [12, 24], // torso sides
+            [23, 24], // hips
+        ];
+        
+        outlineCtx.strokeStyle = 'rgba(100,200,255,0.3)';
+        outlineCtx.lineWidth = 2;
+        connections.forEach(([a, b]) => {
+            if (lm[a] && lm[b]) {
+                outlineCtx.beginPath();
+                outlineCtx.moveTo(toX(lm[a].x), toY(lm[a].y));
+                outlineCtx.lineTo(toX(lm[b].x), toY(lm[b].y));
+                outlineCtx.stroke();
+            }
+        });
+        
+        // Draw key points
+        const keyPoints = [0, 11, 12, 13, 14, 15, 16, 23, 24];
+        keyPoints.forEach(i => {
+            if (lm[i]) {
+                outlineCtx.beginPath();
+                outlineCtx.arc(toX(lm[i].x), toY(lm[i].y), 6, 0, Math.PI * 2);
+                outlineCtx.fillStyle = 'rgba(100,200,255,0.6)';
+                outlineCtx.fill();
+                outlineCtx.strokeStyle = 'rgba(100,200,255,0.9)';
+                outlineCtx.lineWidth = 1;
+                outlineCtx.stroke();
+            }
+        });
+        
+        // Also draw the mapped shader positions as small dots for comparison
+        const mapX = (x) => (0.5 - x) * 3;
+        const mapY = (y) => -(y - 0.3) * 2.5 + 0.8;
+        
+        // Shader camera: ro=(0,0.3,4), ta=(0,0,0)
+        // Convert shader coords back to screen coords for overlay
+        const camRo = [0, 0.3, 4];
+        const camTa = [0, 0, 0];
+        const camF = [0, 0, -1]; // forward
+        const camR = [1, 0, 0];  // right
+        const camU = [0, 1, 0];  // up
+        const fov = 1.5; // matches shader
+        
+        keyPoints.forEach(i => {
+            if (lm[i]) {
+                const sx = mapX(lm[i].x);
+                const sy = mapY(lm[i].y);
+                const sz = -lm[i].z * 1.5;
+                
+                // Project 3D -> 2D (simplified)
+                const dx = sx - camRo[0];
+                const dy = sy - camRo[1];
+                const dz = sz - camRo[2];
+                
+                if (dz < 0) { // in front of camera
+                    const px = (dx * camR[0] + dy * camR[1] + dz * camR[2]) / (-dz) * fov;
+                    const py = (dx * camU[0] + dy * camU[1] + dz * camU[2]) / (-dz) * fov;
+                    
+                    const screenX = w / 2 + px * w / 2;
+                    const screenY = h / 2 - py * h / 2;
+                    
+                    // Draw as orange dot (shader mapped position)
+                    outlineCtx.beginPath();
+                    outlineCtx.arc(screenX, screenY, 4, 0, Math.PI * 2);
+                    outlineCtx.fillStyle = 'rgba(255,150,50,0.8)';
+                    outlineCtx.fill();
+                }
+            }
+        });
+    }
+    
+    function processPose(poseLm, faceLm) {
+        if (state >= 3) return;
+        
+        poseData = poseLm;
+        
+        const hasPose = poseLm && poseLm.length > 0;
+        const nose = hasPose ? poseLm[0] : null;
+        const validPose = nose && nose.x > 0 && nose.x < 1 && nose.y > 0 && nose.y < 1;
+        
+        // State 0: 等待离开
+        if (state === 0) {
+            statusEl.textContent = '去倒杯水吧';
+            if (!validPose || nose.y > LEAVE_THRESHOLD) {
+                statusEl.textContent = '等你回来';
+                state = 1;
+                leaveTime = Date.now();
+                dbg(['离开']);
+            }
+            return;
+        }
+        
+        // State 1: 等待回来
+        if (state === 1) {
+            statusEl.textContent = '等你回来';
+            if (Date.now() - leaveTime < LEAVE_TIME_MIN) return;
+            
+            if (validPose && nose.y < RETURN_THRESHOLD) {
+                statusEl.textContent = '请喝水';
+                state = 2;
+                dbg(['回来']);
+            }
+            return;
+        }
+        
+        // State 2: 等待喝水
+        if (state === 2) {
+            if (!validPose) return;
+            
+            const lWrist = poseLm[15];
+            const rWrist = poseLm[16];
+            const mouthCenter = { x: poseLm[0].x, y: poseLm[0].y, z: poseLm[0].z || 0 };
+            
+            let drinking = false;
+            let minDist = 999;
+            
+            if (lWrist) {
+                const d = dist3D(lWrist, mouthCenter);
+                if (d < minDist) minDist = d;
+                if (d < DRINK_DIST) drinking = true;
+            }
+            if (rWrist) {
+                const d = dist3D(rWrist, mouthCenter);
+                if (d < minDist) minDist = d;
+                if (d < DRINK_DIST) drinking = true;
+            }
+            
+            if (frameCount % 20 === 0) {
+                dbg(['min=' + minDist.toFixed(3), 'drink=' + drinkCount + '/' + DRINK_TARGET]);
+            }
+            
+            if (drinking && Date.now() - lastDrinkTime > DRINK_COOLDOWN) {
+                drinkCount++;
+                lastDrinkTime = Date.now();
+                targetWaterLevel = Math.min(drinkCount / DRINK_TARGET, 1);
+                playDrinkSound();
+                
+                if (drinkCount >= DRINK_TARGET) {
+                    statusEl.textContent = '完成！';
+                    state = 3;
+                    targetWaterLevel = 1;
+                    onComplete();
+                }
+            }
+        }
+    }
+    
+    async function onComplete() {
+        playDoneSound();
+        doneOverlay.classList.add('show');
+        setTimeout(async () => {
+            try { await fetch('http://localhost:3721/api/scene-complete', { method: 'POST' }); } catch(_) {}
+            setTimeout(() => window.close(), 2000);
+        }, 2500);
+    }
+    
+    // ============================================================
+    // Sound
+    // ============================================================
+    function playDrinkSound() {
+        try {
+            const ac = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ac.createOscillator();
+            const gain = ac.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(350, ac.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(180, ac.currentTime + 0.12);
+            gain.gain.setValueAtTime(0.1, ac.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.15);
+            osc.connect(gain);
+            gain.connect(ac.destination);
+            osc.start();
+            osc.stop(ac.currentTime + 0.18);
+        } catch(_) {}
+    }
+    
+    function playDoneSound() {
+        try {
+            const ac = new (window.AudioContext || window.webkitAudioContext)();
+            [400, 500, 600, 800].forEach((f, i) => {
+                const o = ac.createOscillator(), g = ac.createGain();
+                o.type = 'sine';
+                o.frequency.value = f;
+                g.gain.setValueAtTime(0.08, ac.currentTime + i * 0.1);
+                g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + i * 0.1 + 0.2);
+                o.connect(g);
+                g.connect(ac.destination);
+                o.start(ac.currentTime + i * 0.1);
+                o.stop(ac.currentTime + i * 0.1 + 0.3);
+            });
+        } catch(_) {}
+    }
+    
+    // ============================================================
+    // Render Loop
+    // ============================================================
+    let startTime = null;
+    let prevPose = null;
+    
+    function smoothPt(cur, prev, a = 0.5) {
+        if (!prev) return cur;
+        return {
+            x: a * cur.x + (1 - a) * prev.x,
+            y: a * cur.y + (1 - a) * prev.y,
+            z: a * (cur.z || 0) + (1 - a) * (prev.z || 0)
+        };
+    }
+    
+    function render(time) {
+        if (startTime === null) startTime = time;
+        const t = (time - startTime) * 0.001;
+        
+        // Water level animation
+        waterLevel += (targetWaterLevel - waterLevel) * 0.03;
+        
+        // Update UI
+        waterFillEl.style.width = (waterLevel * 100) + '%';
+        progressTextEl.textContent = Math.round(waterLevel * 100) + '%';
+        
+        // Update ball positions from pose data
+        if (poseData && poseData.length >= 25) {
+            // Simple direct mapping: MediaPipe (0-1) -> shader visible range
+            // Camera at (0, 0.3, 4) looking at (0, 0, 0)
+            // Visible range roughly x: -2 to 2, y: -2 to 2
+            // No mirror - user moves right, water person moves right
+            const mapX = (x) => (0.5 - x) * 3;      // mirror: left in camera = left on screen
+            const mapY = (y) => -(y - 0.3) * 2.5 + 0.8; // flip y, shift up to match screen
+            
+            // Head: nose (0)
+            ballPositions[0] = mapX(poseData[0].x);
+            ballPositions[1] = mapY(poseData[0].y);
+            ballPositions[2] = -poseData[0].z * 1.5;
+            
+            // Debug log every 30 frames
+            if (frameCount % 30 === 0) {
+                dbg(['pose!', 'head: ' + ballPositions[0].toFixed(2) + ', ' + ballPositions[1].toFixed(2) + ', ' + ballPositions[2].toFixed(2)]);
+            }
+            
+            // Head2: below head
+            ballPositions[3] = ballPositions[0];
+            ballPositions[4] = ballPositions[1] - 0.3;
+            ballPositions[5] = ballPositions[2];
+            
+            // Torso: between shoulders and hips
+            const lShoulder = poseData[11];
+            const rShoulder = poseData[12];
+            const lHip = poseData[23];
+            const rHip = poseData[24];
+            
+            const shoulderCX = (mapX(lShoulder.x) + mapX(rShoulder.x)) / 2;
+            const shoulderCY = (mapY(lShoulder.y) + mapY(rShoulder.y)) / 2;
+            const hipCX = (mapX(lHip.x) + mapX(rHip.x)) / 2;
+            const hipCY = (mapY(lHip.y) + mapY(rHip.y)) / 2;
+            const torsoCZ = (-(lShoulder.z + rShoulder.z + lHip.z + rHip.z) / 4) * 1.5;
+            
+            // Torso 1 (upper chest) - near shoulders
+            ballPositions[6] = shoulderCX;
+            ballPositions[7] = shoulderCY + 0.1;
+            ballPositions[8] = torsoCZ;
+            
+            // Torso 2 (mid chest)
+            ballPositions[9] = (shoulderCX + hipCX) / 2;
+            ballPositions[10] = (shoulderCY + hipCY) / 2;
+            ballPositions[11] = torsoCZ;
+            
+            // Torso 3 (lower)
+            ballPositions[12] = (shoulderCX + hipCX) / 2;
+            ballPositions[13] = (shoulderCY + hipCY) / 2 - 0.25;
+            ballPositions[14] = torsoCZ;
+            
+            // Torso 4 (near hips)
+            ballPositions[15] = hipCX;
+            ballPositions[16] = hipCY + 0.1;
+            ballPositions[17] = torsoCZ;
+            
+            // Left shoulder
+            ballPositions[18] = mapX(lShoulder.x);
+            ballPositions[19] = mapY(lShoulder.y);
+            ballPositions[20] = -lShoulder.z * 1.5;
+            
+            // Right shoulder
+            ballPositions[21] = mapX(rShoulder.x);
+            ballPositions[22] = mapY(rShoulder.y);
+            ballPositions[23] = -rShoulder.z * 1.5;
+            
+            // Left elbow
+            const lElbow = poseData[13];
+            ballPositions[24] = mapX(lElbow.x);
+            ballPositions[25] = mapY(lElbow.y);
+            ballPositions[26] = -lElbow.z * 1.5;
+            
+            // Right elbow
+            const rElbow = poseData[14];
+            ballPositions[27] = mapX(rElbow.x);
+            ballPositions[28] = mapY(rElbow.y);
+            ballPositions[29] = -rElbow.z * 1.5;
+            
+            // Left hip
+            ballPositions[30] = mapX(lHip.x);
+            ballPositions[31] = mapY(lHip.y);
+            ballPositions[32] = -lHip.z * 1.5;
+            
+            // Right hip
+            ballPositions[33] = mapX(rHip.x);
+            ballPositions[34] = mapY(rHip.y);
+            ballPositions[35] = -rHip.z * 1.5;
+        } else {
+            // No pose detected, log occasionally
+            if (frameCount % 60 === 0) {
+                dbg(['No pose data', 'poseData=' + (poseData ? poseData.length : 'null')]);
+            }
+        }
+        
+        // Render
+        gl.uniform1f(timeUniform, t);
+        gl.uniform2f(resolutionUniform, canvas.width, canvas.height);
+        gl.uniform1f(waterLevelUniform, waterLevel);
+        
+        // Pass ball positions to shader
+        gl.uniform3f(gl.getUniformLocation(program, 'u_b0'), 
+            ballPositions[0], ballPositions[1], ballPositions[2]);
+        gl.uniform3f(gl.getUniformLocation(program, 'u_b1'), 
+            ballPositions[3], ballPositions[4], ballPositions[5]);
+        gl.uniform3f(gl.getUniformLocation(program, 'u_b2'), 
+            ballPositions[6], ballPositions[7], ballPositions[8]);
+        gl.uniform3f(gl.getUniformLocation(program, 'u_b3'), 
+            ballPositions[9], ballPositions[10], ballPositions[11]);
+        gl.uniform3f(gl.getUniformLocation(program, 'u_b4'), 
+            ballPositions[12], ballPositions[13], ballPositions[14]);
+        gl.uniform3f(gl.getUniformLocation(program, 'u_b5'), 
+            ballPositions[15], ballPositions[16], ballPositions[17]);
+        gl.uniform3f(gl.getUniformLocation(program, 'u_b6'), 
+            ballPositions[18], ballPositions[19], ballPositions[20]);
+        gl.uniform3f(gl.getUniformLocation(program, 'u_b7'), 
+            ballPositions[21], ballPositions[22], ballPositions[23]);
+        gl.uniform3f(gl.getUniformLocation(program, 'u_b8'), 
+            ballPositions[24], ballPositions[25], ballPositions[26]);
+        gl.uniform3f(gl.getUniformLocation(program, 'u_b9'), 
+            ballPositions[27], ballPositions[28], ballPositions[29]);
+        gl.uniform3f(gl.getUniformLocation(program, 'u_b10'), 
+            ballPositions[30], ballPositions[31], ballPositions[32]);
+        gl.uniform3f(gl.getUniformLocation(program, 'u_b11'), 
+            ballPositions[33], ballPositions[34], ballPositions[35]);
+        
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        
+        // MediaPipe detection
+        if (poseLandmarker && video.videoWidth && state < 3) {
+            frameCount++;
+            try {
+                const results = poseLandmarker.detectForVideo(video, performance.now());
+                const poseLm = results?.landmarks?.[0];
+                
+                let smoothPose = null;
+                if (poseLm) {
+                    smoothPose = poseLm.map((pt, i) => smoothPt(pt, prevPose ? prevPose[i] : null, 0.5));
+                    prevPose = smoothPose;
+                } else {
+                    prevPose = null;
+                }
+                
+                processPose(smoothPose, null);
+                
+                // Draw pose outline on canvas-outline
+                outlineCtx.clearRect(0, 0, outlineCanvas.width, outlineCanvas.height);
+                if (smoothPose) {
+                    drawPoseOutline(smoothPose);
+                }
+            } catch(e) {
+                if (frameCount % 60 === 0) dbg(['detect err: ' + e.message]);
+            }
+        } else {
+            // Log why detection is not running
+            if (frameCount % 60 === 0) {
+                const reasons = [];
+                if (!poseLandmarker) reasons.push('no landmarkder');
+                if (!video.videoWidth) reasons.push('no video');
+                if (state >= 3) reasons.push('done');
+                dbg(['No detection: ' + reasons.join(', ')]);
+            }
+        }
+        
+        requestAnimationFrame(render);
+    }
+    
+    // ============================================================
+    // Init
+    // ============================================================
+    (async () => {
+        try {
+            dbg(['开始初始化...']);
+            
+            if (!initGL()) {
+                dbg(['initGL 失败']);
+                return;
+            }
+            dbg(['WebGL 初始化成功']);
+            
+            resize();
+            window.addEventListener('resize', resize);
+            
+            dbg(['开始加载 MediaPipe...']);
+            const mpOk = await initMediaPipe();
+            if (!mpOk) {
+                dbg(['MediaPipe 初始化失败，请查看加载界面']);
+                return;
+            }
+            dbg(['MediaPipe 初始化成功']);
+            
+            await startCamera();
+            dbg(['摄像头启动成功']);
+            
+            loadingEl.classList.add('hidden');
+            setTimeout(() => loadingEl.remove(), 400);
+            
+            dbg(['开始渲染']);
+            requestAnimationFrame(render);
+        } catch(err) {
+            loadTextEl.textContent = '启动失败: ' + err.message;
+            dbg(['启动异常: ' + err.message]);
+        }
+    })();
+    
+    // Click skip
+    document.addEventListener('click', () => {
+        if (state >= 3) return;
+        state = 3;
+        targetWaterLevel = 1;
+        playDoneSound();
+        doneOverlay.classList.add('show');
+        setTimeout(async () => {
+            try { await fetch('http://localhost:3721/api/scene-complete', { method: 'POST' }); } catch(_) {}
+            setTimeout(() => window.close(), 1500);
+        }, 1800);
+    });
     </script>
 </body>
 </html>

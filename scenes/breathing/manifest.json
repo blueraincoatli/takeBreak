@@ -2,9 +2,9 @@
   "id": "breathing",
   "name": "呼吸引导",
   "author": "blueraincoat",
-  "description": "正经又尴尬的呼吸冥想，20组深呼吸，配合 Claude Logo 跟随节奏收缩放松，中间随机插入瑜伽教练风格的搞笑文案。",
+  "description": "三组提肛呼吸训练，配合 Claude 放射状脉冲动画，瑜伽教练口吻一本正经引导。久坐开发者的前列腺守护者。",
   "type": "static",
-  "duration": 270,
+  "duration": 45,
   "version": "1.0.0",
   "tags": ["健康", "放松", "冥想"],
   "requirements": {
